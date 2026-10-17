@@ -6,28 +6,19 @@ PassengerAppType node
 PassengerStartupFile server.js
 # DO NOT REMOVE. CLOUDLINUX PASSENGER CONFIGURATION END
 
-# ─── Custom Optimizations & Proxy Rules ───
+# ─── Simple Direct Passenger Forwarding ───
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Force HTTPS (optional but recommended)
+    # Force HTTPS
     RewriteCond %{HTTPS} off
     RewriteRule ^(.*)$ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
-
-    # Serve static assets directly if they exist
-    RewriteCond %{REQUEST_FILENAME} -f [OR]
-    RewriteCond %{REQUEST_FILENAME} -d
-    RewriteRule ^ - [L]
 </IfModule>
 
-# Increase Upload Limits and Timeouts for large video processing
-<IfModule mod_php.c>
-    php_value upload_max_filesize 500M
-    php_value post_max_size 500M
-    php_value max_execution_time 300
-    php_value max_input_time 300
+# MIME type enforcement
+<IfModule mod_mime.c>
+    AddType text/css .css
+    AddType application/javascript .js
 </IfModule>
 
-# Disable Directory Browsing
 Options -Indexes
-

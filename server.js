@@ -42,9 +42,22 @@ try {
   console.warn("Notice: could not chmod ffprobe:", e.message);
 }
 
-// In cPanel Passenger, hostname should NOT be hardcoded to 0.0.0.0 if port is a socket pipe
 const app = next({ dev, dir: __dirname });
 const handle = app.getRequestHandler();
+
+const MIME_TYPES = {
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".woff2": "font/woff2",
+  ".woff": "font/woff",
+  ".ttf": "font/ttf",
+  ".ico": "image/x-icon",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".webp": "image/webp",
+};
 
 app
   .prepare()
@@ -52,6 +65,28 @@ app
     const server = http.createServer((req, res) => {
       try {
         const parsedUrl = url.parse(req.url, true);
+        const { pathname } = parsedUrl;
+
+        // ── Direct Static File Serving for cPanel Passenger ──
+        // If request is for /_next/static/..., serve the file directly from .next/static/
+        if (pathname && pathname.startsWith("/_next/static/")) {
+          const relativePath = pathname.replace("/_next/static/", "");
+          const filePath = path.join(__dirname, ".next", "static", relativePath);
+
+          if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            const ext = path.extname(filePath).toLowerCase();
+            const contentType = MIME_TYPES[ext] || "application/octet-stream";
+
+            res.writeHead(200, {
+              "Content-Type": contentType,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            });
+            fs.createReadStream(filePath).pipe(res);
+            return;
+          }
+        }
+
+        // Delegate all other routes to Next.js handler
         handle(req, res, parsedUrl);
       } catch (err) {
         console.error("Passenger Request Error:", err);
