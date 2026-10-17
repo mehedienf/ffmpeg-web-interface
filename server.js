@@ -1,48 +1,74 @@
-// server.js — cPanel Phusion Passenger custom entry point
-// This file is required by cPanel Node.js hosting to launch the Next.js app.
-// Run `npm run build` first, then set this file as the Application Startup File
-// in cPanel's Node.js section.
+// server.js - Ultra-reliable custom server for cPanel / CloudLinux Phusion Passenger
 
-const { createServer } = require("http");
-const { parse } = require("url");
+// Polyfill Array.prototype.toSorted & toReversed for older Node.js versions (< Node 20)
+if (!Array.prototype.toSorted) {
+  Array.prototype.toSorted = function (compareFn) {
+    const copy = this.slice();
+    return copy.sort(compareFn);
+  };
+}
+if (!Array.prototype.toReversed) {
+  Array.prototype.toReversed = function () {
+    return this.slice().reverse();
+  };
+}
+
+const http = require("http");
+const url = require("url");
 const next = require("next");
 const fs = require("fs");
+const path = require("path");
 
-// ─── Ensure FFmpeg binaries are executable ──────────────────────────────────
-// cPanel often strips the execute bit from npm-installed binaries.
-// This silently fixes it every time the server starts.
+// cPanel Passenger passes a unix domain socket or random port in process.env.PORT
+const port = process.env.PORT || 3000;
+const dev = process.env.NODE_ENV !== "production";
+
+// Auto fix binary permissions safely without throwing unhandled exceptions
 try {
-  const ffmpegPath = require("ffmpeg-static");
-  if (ffmpegPath) fs.chmodSync(ffmpegPath, "755");
-} catch (e) {}
+  const ffmpegStatic = require("ffmpeg-static");
+  if (ffmpegStatic && fs.existsSync(ffmpegStatic)) {
+    fs.chmodSync(ffmpegStatic, 0o755);
+  }
+} catch (e) {
+  console.warn("Notice: could not chmod ffmpeg-static:", e.message);
+}
 
 try {
   const ffprobe = require("@ffprobe-installer/ffprobe");
-  if (ffprobe && ffprobe.path) fs.chmodSync(ffprobe.path, "755");
-} catch (e) {}
-// ────────────────────────────────────────────────────────────────────────────
+  if (ffprobe && ffprobe.path && fs.existsSync(ffprobe.path)) {
+    fs.chmodSync(ffprobe.path, 0o755);
+  }
+} catch (e) {
+  console.warn("Notice: could not chmod ffprobe:", e.message);
+}
 
-const dev = process.env.NODE_ENV !== "production";
-const hostname = process.env.HOST || "0.0.0.0";
-const port = parseInt(process.env.PORT || "3000", 10);
-
-const app = next({ dev, hostname, port });
+// In cPanel Passenger, hostname should NOT be hardcoded to 0.0.0.0 if port is a socket pipe
+const app = next({ dev, dir: __dirname });
 const handle = app.getRequestHandler();
 
-app.prepare().then(() => {
-  createServer(async (req, res) => {
-    try {
-      const parsedUrl = parse(req.url, true);
-      await handle(req, res, parsedUrl);
-    } catch (err) {
-      console.error("Error handling request:", err);
-      res.statusCode = 500;
-      res.end("Internal Server Error");
-    }
-  }).listen(port, hostname, (err) => {
-    if (err) throw err;
-    console.log(`> FFmpeg Studio ready on http://${hostname}:${port}`);
-    console.log(`> Environment: ${dev ? "development" : "production"}`);
-  });
-});
+app
+  .prepare()
+  .then(() => {
+    const server = http.createServer((req, res) => {
+      try {
+        const parsedUrl = url.parse(req.url, true);
+        handle(req, res, parsedUrl);
+      } catch (err) {
+        console.error("Passenger Request Error:", err);
+        res.statusCode = 500;
+        res.end("Internal Server Error");
+      }
+    });
 
+    server.listen(port, (err) => {
+      if (err) {
+        console.error("Failed to start server on port:", port, err);
+        process.exit(1);
+      }
+      console.log(`> App successfully listening on: ${port}`);
+    });
+  })
+  .catch((err) => {
+    console.error("Fatal Error preparing Next.js app:", err);
+    process.exit(1);
+  });
