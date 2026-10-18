@@ -461,28 +461,28 @@ export default function Home() {
   // ── Live command preview ─────────────────────────────────────────────────
   const liveCommand = useCallback(() => {
     const i = localFile?.name ?? "input.mp4";
-    const base = `ffmpeg -i "${i}"`;
+    const base = `ffmpeg -threads 2 -i "${i}"`;
 
     if (activeTab === "convert") {
       if (convertFormat === "mp3") return `${base} -vn -c:a libmp3lame -b:a 192k "output.mp3"`;
       if (convertFormat === "aac") return `${base} -vn -c:a aac -b:a 192k "output.aac"`;
       if (convertFormat === "wav") return `${base} -vn -c:a pcm_s16le "output.wav"`;
-      if (convertFormat === "gif") return `${base} -vf "fps=10,scale=480:-2:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -an "output.gif"`;
-      if (convertFormat === "webm") return `${base} -c:v libvpx-vp9 -crf 30 -b:v 0 -pix_fmt yuv420p -c:a libopus "output.webm"`;
-      return `${base} -c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.mp4"`;
+      if (convertFormat === "gif") return `${base} -vf "fps=10,scale=-2:480:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -an "output.gif"`;
+      if (convertFormat === "webm") return `${base} -c:v libvpx-vp9 -threads 2 -crf 30 -b:v 0 -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:a libopus "output.webm"`;
+      return `${base} -c:v libx264 -threads 2 -crf 23 -preset veryfast -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.mp4"`;
     }
     if (activeTab === "trim") {
       const codec = trimFastCopy ? "-c copy -avoid_negative_ts make_zero"
-        : "-c:v libx264 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k -ar 44100 -movflags +faststart";
+        : "-c:v libx264 -threads 2 -preset veryfast -pix_fmt yuv420p -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -c:a aac -b:a 128k -ar 44100 -movflags +faststart";
       return `${base} -ss "${trimStart}" -t "${trimEnd}" ${codec} "output.${trimFormat}"`;
     }
     if (activeTab === "compress") {
       const scales: Record<Resolution, string> = {
-        "1080p": "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:x=(ow-iw)/2:y=(oh-ih)/2",
-        "720p":  "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:x=(ow-iw)/2:y=(oh-ih)/2",
-        "480p":  "scale=854:480:force_original_aspect_ratio=decrease,pad=854:480:x=(ow-iw)/2:y=(oh-ih)/2",
+        "1080p": "scale=-2:1080",
+        "720p":  "scale=-2:720",
+        "480p":  "scale=-2:480",
       };
-      return `${base} -c:v libx264 -crf ${compressCrf} -preset medium -pix_fmt yuv420p -vf "${scales[compressRes]}" -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.mp4"`;
+      return `${base} -c:v libx264 -threads 2 -crf ${compressCrf} -preset veryfast -pix_fmt yuv420p -vf "${scales[compressRes]}" -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.mp4"`;
     }
     if (activeTab === "extract") {
       if (extractFormat === "wav") return `${base} -vn -c:a pcm_s16le "output.wav"`;

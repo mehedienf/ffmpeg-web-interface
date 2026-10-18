@@ -1,9 +1,11 @@
 /**
  * app/api/process/route.ts
  *
- * POST /api/process
- * Step 2: Process an already-uploaded file by fileId.
- * Uses FFMPEG_BINARY env var set by server.js (resolves system ffmpeg or ~/bin/ffmpeg).
+ * Hardened for cPanel / CloudLinux Shared Hosting:
+ * 1. Global -threads 2 to prevent pthread creation failure (code -22).
+ * 2. -pix_fmt yuv420p for universal compatibility.
+ * 3. Even dimension guarantees via scale=-2:H or scale=trunc(iw/2)*2:trunc(ih/2)*2.
+ * 4. -preset veryfast for minimal memory footprint and fast processing.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -111,7 +113,8 @@ export async function POST(req: NextRequest) {
     const outputName = `${randomUUID()}${outputExt}`;
     const outputPath = path.join(/*turbopackIgnore: true*/ OUTPUTS_DIR, outputName);
 
-    const args: string[] = ["-y", "-i", uploadPath];
+    // Global flags: -y (overwrite), -threads 2 (prevents thread limit exhaustion on cPanel)
+    const args: string[] = ["-y", "-threads", "2", "-i", uploadPath];
 
     if (operation === "convert") {
       if (fmt === "mp3") {
@@ -122,21 +125,34 @@ export async function POST(req: NextRequest) {
         args.push("-vn", "-c:a", "pcm_s16le", outputPath);
       } else if (fmt === "gif") {
         args.push(
-          "-vf", "fps=10,scale=480:-2:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
+          "-vf", "fps=10,scale=-2:480:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
           "-an", outputPath,
         );
       } else if (fmt === "webm") {
         args.push(
-          "-c:v", "libvpx-vp9", "-crf", "30", "-b:v", "0",
-          "-pix_fmt", "yuv420p", "-c:a", "libopus", outputPath,
+          "-c:v", "libvpx-vp9",
+          "-threads", "2",
+          "-crf", "30",
+          "-b:v", "0",
+          "-pix_fmt", "yuv420p",
+          "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+          "-c:a", "libopus",
+          outputPath,
         );
       } else {
         // mp4 / mkv
         args.push(
-          "-c:v", "libx264", "-crf", "23", "-preset", "medium",
+          "-c:v", "libx264",
+          "-threads", "2",
+          "-crf", "23",
+          "-preset", "veryfast",
           "-pix_fmt", "yuv420p",
-          "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-          "-movflags", "+faststart", outputPath,
+          "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+          "-c:a", "aac",
+          "-b:a", "128k",
+          "-ar", "44100",
+          "-movflags", "+faststart",
+          outputPath,
         );
       }
     } else if (operation === "trim") {
@@ -151,27 +167,44 @@ export async function POST(req: NextRequest) {
         args.push("-c", "copy", "-avoid_negative_ts", "make_zero", outputPath);
       } else {
         args.push(
-          "-c:v", "libx264", "-preset", "medium", "-pix_fmt", "yuv420p",
-          "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-          "-movflags", "+faststart", outputPath,
+          "-c:v", "libx264",
+          "-threads", "2",
+          "-preset", "veryfast",
+          "-pix_fmt", "yuv420p",
+          "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+          "-c:a", "aac",
+          "-b:a", "128k",
+          "-ar", "44100",
+          "-movflags", "+faststart",
+          outputPath,
         );
       }
     } else if (operation === "compress") {
       const resolution = body.resolution || "720p";
       const crf        = String(body.crf ?? 23);
 
-      const scales: Record<string, string> = {
-        "1080p": "scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:x=(ow-iw)/2:y=(oh-ih)/2",
-        "720p":  "scale=1280:720:force_original_aspect_ratio=decrease,pad=1280:720:x=(ow-iw)/2:y=(oh-ih)/2",
-        "480p":  "scale=854:480:force_original_aspect_ratio=decrease,pad=854:480:x=(ow-iw)/2:y=(oh-ih)/2",
-      };
-      const scaleFilter = scales[resolution] || "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+      // Clean scale filter: always ensure height is set and width is auto-scaled to even number (-2)
+      let scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+      if (resolution === "1080p") {
+        scaleFilter = "scale=-2:1080";
+      } else if (resolution === "720p") {
+        scaleFilter = "scale=-2:720";
+      } else if (resolution === "480p") {
+        scaleFilter = "scale=-2:480";
+      }
 
       args.push(
-        "-c:v", "libx264", "-crf", crf, "-preset", "medium",
-        "-pix_fmt", "yuv420p", "-vf", scaleFilter,
-        "-c:a", "aac", "-b:a", "128k", "-ar", "44100",
-        "-movflags", "+faststart", outputPath,
+        "-c:v", "libx264",
+        "-threads", "2",
+        "-crf", crf,
+        "-preset", "veryfast",
+        "-pix_fmt", "yuv420p",
+        "-vf", scaleFilter,
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-ar", "44100",
+        "-movflags", "+faststart",
+        outputPath,
       );
     } else if (operation === "extract") {
       const audioBitrate = body.audioBitrate || "192k";
