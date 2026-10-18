@@ -29,14 +29,19 @@ function calcDuration(start: string, end: string): number {
 
 function runFFmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    // Use binary resolved at server startup or explicit ~/bin/ffmpeg
-    const userBin = path.join(require("os").homedir(), "bin", "ffmpeg");
-    const binary =
-      (fs.existsSync(userBin) ? userBin : null) ||
-      process.env.FFMPEG_BINARY ||
-      (function () {
-        try { return require("ffmpeg-static") as string; } catch { return "ffmpeg"; }
-      })();
+    // Check Project Root bin first, then Home bin, then env/system
+    const appRoot = process.env.APP_DIR || process.cwd();
+    const appBin = path.join(appRoot, "bin", "ffmpeg");
+    const homeBin = path.join(require("os").homedir(), "bin", "ffmpeg");
+
+    let binary = "ffmpeg";
+    if (fs.existsSync(appBin)) {
+      binary = appBin;
+    } else if (fs.existsSync(homeBin)) {
+      binary = homeBin;
+    } else if (process.env.FFMPEG_BINARY) {
+      binary = process.env.FFMPEG_BINARY;
+    }
 
     console.log("[FFmpeg] Binary:", binary);
     console.log("[FFmpeg] Args:", args.join(" "));

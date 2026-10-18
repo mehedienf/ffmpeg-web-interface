@@ -29,20 +29,26 @@ const port = process.env.PORT || 3000;
 const dev = process.env.NODE_ENV !== "production";
 
 // ─── Resolve a working FFmpeg binary ──────────────────────────────────────────
-// CloudLinux CageFS blocks execution of binaries inside nodevenv/node_modules.
-// Strategy: find system ffmpeg → if not found, copy ffmpeg-static to ~/bin/
+// STRICTLY respects manually uploaded Linux binaries in ~/bin/
+// NEVER overwrites user files with node_modules binaries!
 function resolveFFmpegBinary() {
-  // 0. Prioritize explicitly installed standalone Linux binary in user's ~/bin
   const userHomeBin = path.join(os.homedir(), "bin", "ffmpeg");
+  
+  // 1. If user placed ffmpeg in ~/bin, ensure chmod 755 and verify
   if (fs.existsSync(userHomeBin)) {
     try {
-      execSync(`"${userHomeBin}" -version`, { timeout: 2000 });
-      console.log(`> Using verified user FFmpeg: ${userHomeBin}`);
-      return userHomeBin;
-    } catch (_) {}
+      fs.chmodSync(userHomeBin, 0o755);
+      const test = execSync(`"${userHomeBin}" -version`, { timeout: 2000 }).toString();
+      if (test.includes("ffmpeg version")) {
+        console.log(`> Using verified user FFmpeg: ${userHomeBin}`);
+        return userHomeBin;
+      }
+    } catch (err) {
+      console.warn(`> Notice: ~/bin/ffmpeg exists but failed verification test:`, err.message);
+    }
   }
 
-  // 1. Check common system-level FFmpeg paths
+  // 2. Check common system-level FFmpeg paths
   const systemPaths = [
     "/usr/bin/ffmpeg",
     "/usr/local/bin/ffmpeg",
@@ -56,68 +62,36 @@ function resolveFFmpegBinary() {
     }
   }
 
-  // 2. Try to locate via `which ffmpeg`
+  // 3. Try to locate via `which ffmpeg`
   try {
-    const which = execSync("which ffmpeg", { timeout: 3000 }).toString().trim();
+    const which = execSync("which ffmpeg", { timeout: 2000 }).toString().trim();
     if (which) {
       console.log(`> Found FFmpeg via which: ${which}`);
       return which;
     }
   } catch (_) {}
 
-  // 3. Copy ffmpeg-static to ~/bin/ to escape CageFS restrictions
-  try {
-    const ffmpegStatic = require("ffmpeg-static");
-    if (ffmpegStatic && fs.existsSync(ffmpegStatic)) {
-      const binDir = path.join(os.homedir(), "bin");
-      const destPath = path.join(binDir, "ffmpeg");
-
-      if (!fs.existsSync(binDir)) {
-        fs.mkdirSync(binDir, { recursive: true });
-      }
-
-      // Always copy fresh to ensure correct binary
-      fs.copyFileSync(ffmpegStatic, destPath);
-      fs.chmodSync(destPath, 0o755);
-      console.log(`> Copied ffmpeg-static to ${destPath}`);
-      return destPath;
-    }
-  } catch (e) {
-    console.warn("> Could not copy ffmpeg-static:", e.message);
-  }
-
-  // 4. Last resort: hope `ffmpeg` is in PATH
-  console.warn("> No FFmpeg binary found. Using 'ffmpeg' from PATH.");
-  return "ffmpeg";
+  // 4. Fallback to ~/bin/ffmpeg path directly
+  return userHomeBin;
 }
 
-// Resolve FFprobe binary (same strategy)
 function resolveFFprobeBinary() {
-  const systemPaths = [
-    "/usr/bin/ffprobe",
-    "/usr/local/bin/ffprobe",
-  ];
+  const userProbe = path.join(os.homedir(), "bin", "ffprobe");
+  if (fs.existsSync(userProbe)) {
+    try { fs.chmodSync(userProbe, 0o755); } catch (_) {}
+    return userProbe;
+  }
+  const systemPaths = ["/usr/bin/ffprobe", "/usr/local/bin/ffprobe"];
   for (const p of systemPaths) {
     if (fs.existsSync(p)) return p;
   }
-  try {
-    const { path: ffprobePath } = require("@ffprobe-installer/ffprobe");
-    if (ffprobePath && fs.existsSync(ffprobePath)) {
-      const binDir = path.join(os.homedir(), "bin");
-      const destPath = path.join(binDir, "ffprobe");
-      if (!fs.existsSync(binDir)) fs.mkdirSync(binDir, { recursive: true });
-      fs.copyFileSync(ffprobePath, destPath);
-      fs.chmodSync(destPath, 0o755);
-      return destPath;
-    }
-  } catch (_) {}
   return "ffprobe";
 }
 
 process.env.FFMPEG_BINARY = resolveFFmpegBinary();
 process.env.FFPROBE_BINARY = resolveFFprobeBinary();
-console.log(`> FFmpeg : ${process.env.FFMPEG_BINARY}`);
-console.log(`> FFprobe: ${process.env.FFPROBE_BINARY}`);
+console.log(`> Active FFmpeg : ${process.env.FFMPEG_BINARY}`);
+console.log(`> Active FFprobe: ${process.env.FFPROBE_BINARY}`);
 
 // ──────────────────────────────────────────────────────────────────────────────
 

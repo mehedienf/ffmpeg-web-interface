@@ -1,46 +1,62 @@
-// app/api/test/route.ts — Live diagnostic for ~/bin/ffmpeg
+// app/api/test/route.ts — Live diagnostic checking BOTH locations
 import { NextResponse } from "next/server";
-import { UPLOADS_DIR, OUTPUTS_DIR } from "@/lib/storage";
 import fs from "fs";
 import path from "path";
 import os from "os";
 import { execSync } from "child_process";
 
 export async function GET() {
-  const userBinFfmpeg = path.join(os.homedir(), "bin", "ffmpeg");
-  const userBinFfprobe = path.join(os.homedir(), "bin", "ffprobe");
+  const appRoot = process.env.APP_DIR || process.cwd();
+  
+  // Location 1: Project root bin (e.g. /home/olivosof/ffmpeg.olivosoft.com/bin/ffmpeg)
+  const appBinFfmpeg = path.join(appRoot, "bin", "ffmpeg");
+  
+  // Location 2: User home bin (e.g. /home/olivosof/bin/ffmpeg)
+  const homeBinFfmpeg = path.join(os.homedir(), "bin", "ffmpeg");
 
-  let ffmpegExists = fs.existsSync(userBinFfmpeg);
-  let ffmpegSize = 0;
-  let ffmpegVersion = "";
-  let executionError = "";
+  function inspectFile(filePath: string) {
+    const exists = fs.existsSync(filePath);
+    let size = 0;
+    let version = "";
+    let error = "";
 
-  if (ffmpegExists) {
-    const stat = fs.statSync(userBinFfmpeg);
-    ffmpegSize = stat.size;
-
-    // Ensure permissions
-    try {
-      fs.chmodSync(userBinFfmpeg, 0o755);
-    } catch (_) {}
-
-    // Test execution
-    try {
-      ffmpegVersion = execSync(`"${userBinFfmpeg}" -version`, { timeout: 3000 }).toString();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      executionError = msg;
+    if (exists) {
+      try {
+        const stat = fs.statSync(filePath);
+        size = stat.size;
+        fs.chmodSync(filePath, 0o755);
+        version = execSync(`"${filePath}" -version`, { timeout: 3000 }).toString();
+      } catch (err: unknown) {
+        error = err instanceof Error ? err.message : String(err);
+      }
     }
+
+    return {
+      path: filePath,
+      exists,
+      sizeInMB: (size / (1024 * 1024)).toFixed(2) + " MB",
+      works: version.includes("ffmpeg version"),
+      version: version ? version.split("\n")[0] : null,
+      error: error || null,
+    };
   }
 
+  const projectBinStatus = inspectFile(appBinFfmpeg);
+  const homeBinStatus = inspectFile(homeBinFfmpeg);
+
+  const bestWorking = projectBinStatus.works
+    ? projectBinStatus.path
+    : homeBinStatus.works
+    ? homeBinStatus.path
+    : null;
+
   return NextResponse.json({
-    status: ffmpegVersion ? "SUCCESS_READY_TO_USE" : "NEEDS_REPLACE",
-    userBinFfmpeg,
-    exists: ffmpegExists,
-    sizeInMB: (ffmpegSize / (1024 * 1024)).toFixed(2) + " MB",
-    version: ffmpegVersion.split("\n")[0] || null,
-    executionError: executionError || null,
-    serverArch: os.arch(),
+    status: bestWorking ? "SUCCESS_READY_TO_USE" : "NEEDS_WORKING_BINARY",
+    activeSelectedFfmpeg: bestWorking,
+    appRoot,
+    location1_ProjectFolder: projectBinStatus,
+    location2_HomeFolder: homeBinStatus,
     serverPlatform: os.platform(),
+    serverArch: os.arch(),
   });
 }
