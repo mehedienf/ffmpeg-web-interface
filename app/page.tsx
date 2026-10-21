@@ -308,92 +308,121 @@ function FileUploader({
     if (f) onLocalFile(f);
   };
 
-  return (
-    <div className="space-y-3">
+  // State 1: When no file is selected yet — show dashed dropzone
+  if (!localFile) {
+    return (
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
-        onClick={() => { if (!localFile) inputRef.current?.click(); }}
+        onClick={() => inputRef.current?.click()}
         className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all shadow-none
-          ${dragging ? "border-[#f05523] bg-[#faf5f2]" :
-            uploadState === "done" ? "border-emerald-500/50 bg-[#faf5f2] cursor-default" :
-            "border-[#d9c8bd] hover:border-[#f05523]/70 bg-[#faf5f2]"}`}
+          ${dragging ? "border-[#f05523] bg-[#faf5f2]" : "border-[#d9c8bd] hover:border-[#f05523]/70 bg-[#faf5f2]"}`}
       >
-        <input ref={inputRef} type="file" accept="video/*,audio/*" className="hidden"
-          onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) onLocalFile(f); }} />
-
-        {!localFile && (
-          <div className="flex flex-col items-center gap-3">
-            <div className="rounded-2xl bg-[#ded0c5] p-4 text-[#f05523]">
-              <Upload size={28} />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-stone-800">Drag & drop your file here</p>
-              <p className="mt-1 text-xs text-stone-500">
-                or <span className="text-[#f05523] underline font-medium">browse files</span> · Video & Audio supported
-              </p>
-            </div>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="video/*,audio/*"
+          className="hidden"
+          onChange={(e: ChangeEvent<HTMLInputElement>) => {
+            const f = e.target.files?.[0];
+            if (f) onLocalFile(f);
+          }}
+        />
+        <div className="flex flex-col items-center gap-3">
+          <div className="rounded-2xl bg-[#ded0c5] p-4 text-[#f05523]">
+            <Upload size={28} />
           </div>
-        )}
+          <div>
+            <p className="text-sm font-semibold text-stone-800">Drag & drop your file here</p>
+            <p className="mt-1 text-xs text-stone-500">
+              or <span className="text-[#f05523] underline font-medium">browse files</span> · Video & Audio (Max 200MB)
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-        {localFile && (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3 text-left bg-[#ded0c5] rounded-xl p-3 shadow-none border-0">
-              <div className="rounded-lg bg-[#faf5f2] p-2.5 text-[#f05523]">
-                {isAudio(localFile) ? <FileAudio size={20} /> : <FileVideo size={20} />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium text-stone-800">{localFile.name}</p>
-                <p className="text-xs text-stone-500">{fmtBytes(localFile.size)}</p>
-              </div>
-              {uploadState !== "uploading" && (
-                <button onClick={(e) => { e.stopPropagation(); onClear(); }}
-                  className="text-stone-400 hover:text-rose-600 transition-colors p-1">
-                  <X size={18} />
-                </button>
+  // State 2: When file IS uploaded — no dashed border, title/size/status at top, full preview below
+  return (
+    <div className="space-y-3">
+      {/* File info bar at the top (Title, size, upload status, clear button) */}
+      <div className="flex items-center justify-between gap-3 bg-[#faf5f2] rounded-xl p-3 border border-[#d9c8bd]/40">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="rounded-lg bg-[#ded0c5] p-2 text-[#f05523] shrink-0">
+            {isAudio(localFile) ? <FileAudio size={18} /> : <FileVideo size={18} />}
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-stone-800" title={localFile.name}>
+              {localFile.name}
+            </p>
+            <div className="flex items-center gap-2 text-xs text-stone-500 font-medium">
+              <span>{fmtBytes(localFile.size)}</span>
+              <span>•</span>
+              {uploadState === "uploading" && (
+                <span className="text-[#f05523] flex items-center gap-1 font-semibold">
+                  <CloudUpload size={12} /> Uploading ({uploadProgress}%)
+                </span>
+              )}
+              {uploadState === "done" && (
+                <span className="text-emerald-700 flex items-center gap-1 font-semibold">
+                  <CheckCircle size={12} className="text-emerald-600" /> Ready to process
+                </span>
+              )}
+              {uploadState === "error" && (
+                <span className="text-rose-600 flex items-center gap-1 font-semibold">
+                  <AlertTriangle size={12} /> Upload failed
+                </span>
               )}
             </div>
-
-            {/* Upload progress */}
-            {uploadState === "uploading" && (
-              <div className="space-y-1.5 pt-1">
-                <div className="flex items-center justify-between text-xs text-stone-600 font-medium">
-                  <span className="flex items-center gap-1.5 text-[#f05523]">
-                    <CloudUpload size={14} /> Uploading to server…
-                  </span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="h-2 bg-[#d9c8bd] rounded-full overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-[#f05523] to-[#e11d48] rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }} />
-                </div>
-              </div>
-            )}
-
-            {uploadState === "done" && (
-              <p className="text-xs text-emerald-700 font-medium flex items-center justify-center gap-1.5 pt-1">
-                <CheckCircle size={14} className="text-emerald-600" /> Uploaded successfully · Ready to process
-              </p>
-            )}
-
-            {uploadState === "error" && (
-              <p className="text-xs text-rose-600 font-medium flex items-center justify-center gap-1.5 pt-1">
-                <AlertTriangle size={14} /> Upload failed · Please try again
-              </p>
-            )}
-
-            {/* Preview */}
-            {previewUrl && uploadState !== "uploading" && (
-              <div className="rounded-xl overflow-hidden bg-stone-900 shadow-none border-0">
-                {isAudio(localFile)
-                  ? <audio src={previewUrl} controls className="w-full h-11" />
-                  : <video src={previewUrl} controls className="w-full max-h-52 object-contain" />}
-              </div>
-            )}
           </div>
+        </div>
+
+        {uploadState !== "uploading" && (
+          <button
+            onClick={onClear}
+            title="Remove file"
+            className="text-stone-400 hover:text-rose-600 hover:bg-stone-200/60 transition-colors p-1.5 rounded-lg shrink-0 cursor-pointer"
+          >
+            <X size={16} />
+          </button>
         )}
       </div>
+
+      {/* Upload progress bar */}
+      {uploadState === "uploading" && (
+        <div className="space-y-1">
+          <div className="h-1.5 bg-[#d9c8bd] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#f05523] to-[#e11d48] rounded-full transition-all duration-300"
+              style={{ width: `${uploadProgress}%` }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Full preview area without any dashed borders */}
+      {previewUrl && (
+        <div className="rounded-xl overflow-hidden bg-stone-950 shadow-inner border border-stone-800/40 relative">
+          {isAudio(localFile) ? (
+            <div className="p-4 bg-stone-900 flex flex-col gap-2">
+              <div className="flex items-center gap-2 text-xs font-semibold text-stone-300">
+                <Music size={15} className="text-[#f05523]" />
+                <span>Source Audio File Preview</span>
+              </div>
+              <audio src={previewUrl} controls className="w-full h-11" />
+            </div>
+          ) : (
+            <video
+              src={previewUrl}
+              controls
+              playsInline
+              className="w-full max-h-72 object-contain mx-auto"
+            />
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -507,6 +536,12 @@ export default function Home() {
 
   // ── Step 1: Upload file when dropped/selected ────────────────────────────
   const handleLocalFile = useCallback(async (file: File) => {
+    const MAX_FILE_SIZE = 200 * 1024 * 1024; // 200MB limit
+    if (file.size > MAX_FILE_SIZE) {
+      toast("error", `File size (${fmtBytes(file.size)}) exceeds the maximum 200MB limit. Please upload a smaller file.`);
+      return;
+    }
+
     if (result?.filename) {
       fetch(`/api/download/${encodeURIComponent(result.filename)}`, {
         method: "DELETE",
@@ -710,34 +745,72 @@ export default function Home() {
               className="h-9 md:h-10 w-auto object-contain"
             />
             <div className="hidden sm:block border-l border-[#d9c8bd] pl-3">
-              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider block">FFmpeg Studio</span>
+              <span className="text-xs font-semibold text-stone-500 tracking-wider block">FFmpeg Studio</span>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs font-medium text-stone-700 bg-[#ded0c5] px-3 py-1.5 rounded-full shadow-none border-0">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span>Online</span>
+            <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider block">Free</span>
           </div>
         </div>
       </header>
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Upload Panel */}
-        <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0">
-          <div className="flex items-center gap-2.5">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">1</span>
-            <h2 className="text-sm font-semibold text-stone-800">Upload File to Server</h2>
-            {uploadState === "done" && <CheckCircle size={15} className="text-emerald-600 ml-auto" />}
-          </div>
-          <FileUploader
-            uploadState={uploadState}
-            uploadedFile={uploadedFile}
-            localFile={localFile}
-            uploadProgress={uploadProgress}
-            onLocalFile={handleLocalFile}
-            onClear={handleClear}
-          />
-        </section>
+        {/* Top Grid: Step 1 (Upload) + How It Works */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch">
+          {/* Upload Panel */}
+          <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0 flex flex-col justify-between">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">1</span>
+                <h2 className="text-sm font-semibold text-stone-800">Upload File to Server</h2>
+                <span className="text-xs text-stone-500 font-medium ml-auto">Max 200MB</span>
+                {uploadState === "done" && <CheckCircle size={15} className="text-emerald-600" />}
+              </div>
+              <FileUploader
+                uploadState={uploadState}
+                uploadedFile={uploadedFile}
+                localFile={localFile}
+                uploadProgress={uploadProgress}
+                onLocalFile={handleLocalFile}
+                onClear={handleClear}
+              />
+            </div>
+          </section>
+
+          {/* How It Works (Right side of Upload Panel) */}
+          <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-sm font-semibold text-stone-800 flex items-center gap-2">
+                  <span>How It Works</span>
+                </h2>
+                <span className="text-xs font-medium text-stone-600 bg-[#faf5f2] px-2.5 py-1 rounded-full">
+                  Quick Guide
+                </span>
+              </div>
+              <ol className="space-y-3.5 text-sm text-stone-700">
+                {[
+                  "Drag & drop your video or audio file (up to 200MB) — see instant preview right here.",
+                  "Choose operation(s): Format Converter, Compressor, and Trimmer can be combined.",
+                  "Configure your resolution, quality slider, or trimming points with live FFmpeg preview.",
+                  "Process server-side — watch your result preview and download or convert again.",
+                ].map((step, i) => (
+                  <li key={i} className="flex gap-3 items-start">
+                    <span className="shrink-0 w-6 h-6 rounded-full bg-[#faf5f2] text-[#f05523] flex items-center justify-center text-xs font-bold mt-0.5 shadow-none border-0">
+                      {i + 1}
+                    </span>
+                    <span className="leading-relaxed">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+            <div className="pt-3 border-t border-[#d9c8bd]/60 text-xs text-stone-500 flex items-center justify-between">
+              <span>Fast server-side FFmpeg</span>
+              <span>Auto-deleted after 15m inactivity</span>
+            </div>
+          </section>
+        </div>
 
         {/* Step 2: Choose Operation(s) */}
         <div>
@@ -945,8 +1018,8 @@ export default function Home() {
                   {processing
                     ? <><Loader2 size={18} className="animate-spin" /> Processing…</>
                     : result
-                    ? <><Play size={18} /> Convert Again ({selectedOps.map((id) => OPERATIONS.find((o) => o.id === id)?.label.split(" ")[0]).join(" + ")})</>
-                    : <><Play size={18} /> Start Processing ({selectedOps.map((id) => OPERATIONS.find((o) => o.id === id)?.label.split(" ")[0]).join(" + ")})</>}
+                    ? <><Play size={18} /> Convert Again </>
+                    : <><Play size={18} /> Start Processing </>}
                 </button>
                 {result && !processing && (
                   <p className="text-center text-[11px] text-stone-500 mt-2">
@@ -982,23 +1055,16 @@ export default function Home() {
             )}
 
             {!result && (
-              <section className="rounded-2xl bg-[#ded0c5] p-6 shadow-none border-0">
-                <h2 className="text-sm font-semibold text-stone-800 mb-4">How It Works</h2>
-                <ol className="space-y-3.5 text-sm text-stone-700">
-                  {[
-                    "Drag & drop your video or audio file — it uploads to the server immediately.",
-                    "Select an operation tab and configure your options.",
-                    "Click \"Start Processing\" — FFmpeg processes the file server-side.",
-                    "Download your output file. Auto-deleted after 15 minutes of inactivity.",
-                  ].map((step, i) => (
-                    <li key={i} className="flex gap-3 items-start">
-                      <span className="shrink-0 w-6 h-6 rounded-full bg-[#faf5f2] text-[#f05523] flex items-center justify-center text-xs font-bold mt-0.5 shadow-none border-0">
-                        {i + 1}
-                      </span>
-                      <span className="leading-relaxed">{step}</span>
-                    </li>
-                  ))}
-                </ol>
+              <section className="rounded-2xl bg-[#ded0c5] p-6 shadow-none border-0 flex flex-col items-center justify-center text-center py-12 space-y-3">
+                <div className="w-12 h-12 rounded-full bg-[#faf5f2] text-[#f05523] flex items-center justify-center shadow-none">
+                  <Play size={20} className="ml-0.5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-stone-800">Ready to Process</h3>
+                  <p className="text-xs text-stone-600 mt-1 max-w-xs">
+                    Choose operations and configure options on the left, then click <strong>Start Processing</strong>. Your output preview and download button will appear here.
+                  </p>
+                </div>
               </section>
             )}
           </div>

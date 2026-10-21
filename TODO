@@ -3,3 +3,5 @@
 - [x] ekbar compress korar por video ta abar upload kora lage (Solved! Input file retain thake jate multiple operation kora jay)
 - [x] Format converter and compress duitai ekshathe kora (Multi-select operation pills + chained single-pass FFmpeg pipeline)
 - [x] Output preview & re-convert e previous converted file auto-delete (Built-in video/audio preview + automatic replacement)
+- [x] 200MB maximum file upload limit (Client-side instant validation + Server-side enforcement)
+- [x] How It Works section top right e shift & Upload section e upload er por dashed border remove kore full video preview + top info bar

@@ -21,6 +21,8 @@ import {
   deleteFileSafe,
 } from "@/lib/storage";
 
+const MAX_FILE_SIZE_BYTES = 200 * 1024 * 1024; // 200MB
+
 export async function POST(req: NextRequest) {
   try {
     ensureStorageDirs();
@@ -32,6 +34,13 @@ export async function POST(req: NextRequest) {
 
     if (!file) {
       return NextResponse.json({ error: "No file provided." }, { status: 400 });
+    }
+
+    if (file.size > MAX_FILE_SIZE_BYTES) {
+      return NextResponse.json(
+        { error: "File exceeds the 200MB maximum size limit." },
+        { status: 400 },
+      );
     }
 
     const ext = path.extname(file.name) || ".mp4";
@@ -47,6 +56,14 @@ export async function POST(req: NextRequest) {
       fs.unlinkSync(uploadPath);
       return NextResponse.json(
         { error: "Uploaded file was empty. Please try again." },
+        { status: 400 },
+      );
+    }
+
+    if (stat.size > MAX_FILE_SIZE_BYTES) {
+      fs.unlinkSync(uploadPath);
+      return NextResponse.json(
+        { error: "File exceeds the 200MB maximum size limit." },
         { status: 400 },
       );
     }
