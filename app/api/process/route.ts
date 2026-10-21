@@ -6,6 +6,7 @@
  * 2. -pix_fmt yuv420p for universal compatibility.
  * 3. Even dimension guarantees via scale=-2:H or scale=trunc(iw/2)*2:trunc(ih/2)*2.
  * 4. -preset veryfast for minimal memory footprint and fast processing.
+ * 5. Supports chained operations: Convert + Compress + Trim combined in a single FFmpeg pass!
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -49,7 +50,6 @@ function runFFmpeg(args: string[]): Promise<void> {
     console.log("[FFmpeg] Binary:", binary);
     console.log("[FFmpeg] Args:", args.join(" "));
 
-    // turbopackIgnore: true
     const child = spawn(/*turbopackIgnore: true*/ binary, args);
     let stderr = "";
 
@@ -75,10 +75,11 @@ export async function POST(req: NextRequest) {
     initStorageCleanup();
     cleanExpiredFiles();
 
-    const body = await req.json() as {
+    const body = (await req.json()) as {
       fileId: string;
       filename: string;
-      operation: string;
+      operation?: string;
+      operations?: string[];
       outputFormat: string;
       startTime?: string;
       endTime?: string;
@@ -88,15 +89,23 @@ export async function POST(req: NextRequest) {
       audioBitrate?: string;
     };
 
-    const { fileId, filename, operation, outputFormat } = body;
+    const { fileId, filename, outputFormat } = body;
     const fmt = (outputFormat || "mp4").toLowerCase();
 
     if (!fileId || !filename) {
       return NextResponse.json({ error: "Missing fileId or filename." }, { status: 400 });
     }
 
-    if (!["convert", "trim", "compress", "extract"].includes(operation)) {
-      return NextResponse.json({ error: `Unknown operation: ${operation}` }, { status: 400 });
+    // Support both multiple operations array and legacy single operation string
+    const operations: string[] = Array.isArray(body.operations) && body.operations.length > 0
+      ? body.operations
+      : body.operation
+      ? [body.operation]
+      : ["convert"];
+
+    const validOps = ["convert", "trim", "compress", "extract"];
+    if (!operations.every((op) => validOps.includes(op))) {
+      return NextResponse.json({ error: "Invalid operation specified." }, { status: 400 });
     }
 
     const uploadPath = path.join(/*turbopackIgnore: true*/ UPLOADS_DIR, path.basename(filename));
@@ -116,106 +125,109 @@ export async function POST(req: NextRequest) {
     const outputName = `${randomUUID()}${outputExt}`;
     const outputPath = path.join(/*turbopackIgnore: true*/ OUTPUTS_DIR, outputName);
 
+    const isExtract = operations.includes("extract");
+    const isTrim = operations.includes("trim");
+    const isCompress = operations.includes("compress");
+    const isConvert = operations.includes("convert");
+
     // Global flags: -y (overwrite), -threads 2 (prevents thread limit exhaustion on cPanel)
-    const args: string[] = ["-y", "-threads", "2", "-i", uploadPath];
+    const args: string[] = ["-y", "-threads", "2"];
 
-    if (operation === "convert") {
-      if (fmt === "mp3") {
-        args.push("-vn", "-c:a", "libmp3lame", "-b:a", "192k", outputPath);
-      } else if (fmt === "aac") {
-        args.push("-vn", "-c:a", "aac", "-b:a", "192k", outputPath);
-      } else if (fmt === "wav") {
-        args.push("-vn", "-c:a", "pcm_s16le", outputPath);
-      } else if (fmt === "gif") {
-        args.push(
-          "-vf", "fps=10,scale=-2:480:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse",
-          "-an", outputPath,
-        );
-      } else if (fmt === "webm") {
-        args.push(
-          "-c:v", "libvpx-vp9",
-          "-threads", "2",
-          "-crf", "30",
-          "-b:v", "0",
-          "-pix_fmt", "yuv420p",
-          "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          "-c:a", "libopus",
-          outputPath,
-        );
-      } else {
-        // mp4 / mkv
-        args.push(
-          "-c:v", "libx264",
-          "-threads", "2",
-          "-crf", "23",
-          "-preset", "veryfast",
-          "-pix_fmt", "yuv420p",
-          "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          "-c:a", "aac",
-          "-b:a", "128k",
-          "-ar", "44100",
-          "-movflags", "+faststart",
-          outputPath,
-        );
-      }
-    } else if (operation === "trim") {
-      const startTime = body.startTime || "00:00:00";
-      const endTime   = body.endTime   || "";
-      const fastCopy  = body.fastCopy  === true;
-
-      args.push("-ss", startTime);
-      if (endTime) args.push("-t", String(calcDuration(startTime, endTime)));
-
-      if (fastCopy) {
-        args.push("-c", "copy", "-avoid_negative_ts", "make_zero", outputPath);
-      } else {
-        args.push(
-          "-c:v", "libx264",
-          "-threads", "2",
-          "-preset", "veryfast",
-          "-pix_fmt", "yuv420p",
-          "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-          "-c:a", "aac",
-          "-b:a", "128k",
-          "-ar", "44100",
-          "-movflags", "+faststart",
-          outputPath,
-        );
-      }
-    } else if (operation === "compress") {
-      const resolution = body.resolution || "720p";
-      const crf        = String(body.crf ?? 23);
-
-      // Clean scale filter: always ensure height is set and width is auto-scaled to even number (-2)
-      let scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
-      if (resolution === "1080p") {
-        scaleFilter = "scale=-2:1080";
-      } else if (resolution === "720p") {
-        scaleFilter = "scale=-2:720";
-      } else if (resolution === "480p") {
-        scaleFilter = "scale=-2:480";
+    // ── Audio Extraction Mode ────────────────────────────────────────────────
+    if (isExtract) {
+      if (isTrim) {
+        const startTime = body.startTime || "00:00:00";
+        const endTime = body.endTime || "";
+        args.push("-ss", startTime);
+        if (endTime) args.push("-t", String(calcDuration(startTime, endTime)));
       }
 
-      args.push(
-        "-c:v", "libx264",
-        "-threads", "2",
-        "-crf", crf,
-        "-preset", "veryfast",
-        "-pix_fmt", "yuv420p",
-        "-vf", scaleFilter,
-        "-c:a", "aac",
-        "-b:a", "128k",
-        "-ar", "44100",
-        "-movflags", "+faststart",
-        outputPath,
-      );
-    } else if (operation === "extract") {
+      args.push("-i", uploadPath, "-vn");
       const audioBitrate = body.audioBitrate || "192k";
-      args.push("-vn");
+
       if (fmt === "wav") {
         args.push("-c:a", "pcm_s16le", outputPath);
+      } else if (fmt === "aac") {
+        args.push("-c:a", "aac", "-b:a", audioBitrate, outputPath);
       } else {
         args.push("-c:a", "libmp3lame", "-b:a", audioBitrate, outputPath);
+      }
+    } else {
+      // ── Video Processing (Convert / Compress / Trim combined) ──────────────
+      const startTime = body.startTime || "00:00:00";
+      const endTime = body.endTime || "";
+      const canFastCopy = isTrim && !isCompress && !isConvert && body.fastCopy === true;
+
+      if (isTrim) {
+        args.push("-ss", startTime);
+        if (endTime) args.push("-t", String(calcDuration(startTime, endTime)));
+      }
+
+      args.push("-i", uploadPath);
+
+      if (canFastCopy) {
+        // Fast stream copy (instant cutting without re-encoding)
+        args.push("-c", "copy", "-avoid_negative_ts", "make_zero", outputPath);
+      } else {
+        // Re-encoding pipeline
+        let scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+        if (isCompress) {
+          const resolution = body.resolution || "720p";
+          if (resolution === "1080p") {
+            scaleFilter = "scale=-2:1080";
+          } else if (resolution === "720p") {
+            scaleFilter = "scale=-2:720";
+          } else if (resolution === "480p") {
+            scaleFilter = "scale=-2:480";
+          }
+        }
+
+        const crf = String(body.crf ?? (fmt === "webm" ? 30 : 23));
+
+        if (fmt === "gif") {
+          args.push(
+            "-vf",
+            `fps=10,${scaleFilter}:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse`,
+            "-an",
+            outputPath,
+          );
+        } else if (fmt === "webm") {
+          args.push(
+            "-c:v", "libvpx-vp9",
+            "-threads", "2",
+            "-crf", crf,
+            "-b:v", "0",
+            "-pix_fmt", "yuv420p",
+            "-vf", scaleFilter,
+            "-c:a", "libopus",
+            outputPath,
+          );
+        } else if (["mp3", "wav", "aac"].includes(fmt)) {
+          // Audio-only conversion
+          args.push("-vn");
+          if (fmt === "wav") {
+            args.push("-c:a", "pcm_s16le", outputPath);
+          } else if (fmt === "aac") {
+            args.push("-c:a", "aac", "-b:a", "192k", outputPath);
+          } else {
+            args.push("-c:a", "libmp3lame", "-b:a", "192k", outputPath);
+          }
+        } else {
+          // Default: MP4 / MKV with H.264 + AAC
+          args.push(
+            "-c:v", "libx264",
+            "-threads", "2",
+            "-crf", crf,
+            "-preset", "veryfast",
+            "-pix_fmt", "yuv420p",
+            "-vf", scaleFilter,
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ar", "44100",
+            "-movflags", "+faststart",
+            outputPath,
+          );
+        }
       }
     }
 

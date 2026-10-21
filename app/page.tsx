@@ -24,12 +24,13 @@ import {
   FileAudio,
   Play,
   CloudUpload,
+  Check,
 } from "lucide-react";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
-type TabId = "convert" | "trim" | "compress" | "extract";
+type OperationId = "convert" | "compress" | "trim" | "extract";
 type Resolution = "1080p" | "720p" | "480p";
 type AudioBitrate = "128k" | "192k" | "320k";
 type OutputFormat = "mp4" | "webm" | "mkv" | "mp3" | "wav" | "aac" | "gif";
@@ -59,15 +60,15 @@ interface Toast {
 // ─────────────────────────────────────────────────────────────────────────────
 const VIDEO_FORMATS: OutputFormat[] = ["mp4", "webm", "mkv", "gif"];
 const ALL_FORMATS: OutputFormat[] = ["mp4", "webm", "mkv", "mp3", "wav", "aac", "gif"];
-const AUDIO_ONLY_FORMATS: OutputFormat[] = ["mp3", "wav"];
+const AUDIO_ONLY_FORMATS: ("mp3" | "wav" | "aac")[] = ["mp3", "wav", "aac"];
 const RESOLUTIONS: Resolution[] = ["1080p", "720p", "480p"];
 const BITRATES: AudioBitrate[] = ["128k", "192k", "320k"];
 
-const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
-  { id: "convert",  label: "Format Converter", icon: <Film size={15} /> },
-  { id: "trim",     label: "Trimmer / Cutter",  icon: <Scissors size={15} /> },
-  { id: "compress", label: "Compressor",        icon: <Minimize2 size={15} /> },
-  { id: "extract",  label: "Audio Extractor",   icon: <Music size={15} /> },
+const OPERATIONS: { id: OperationId; label: string; icon: React.ReactNode; desc: string }[] = [
+  { id: "convert",  label: "Format Converter", icon: <Film size={15} />,     desc: "Change video/audio container" },
+  { id: "compress", label: "Compressor",        icon: <Minimize2 size={15} />, desc: "Reduce file size & resize" },
+  { id: "trim",     label: "Trimmer / Cutter",  icon: <Scissors size={15} />,  desc: "Cut duration by time" },
+  { id: "extract",  label: "Audio Extractor",   icon: <Music size={15} />,     desc: "Extract audio stream only" },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -323,7 +324,26 @@ function FileUploader({
 // Main Page
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<TabId>("convert");
+  const [selectedOps, setSelectedOps] = useState<OperationId[]>(["convert", "compress"]);
+
+  const toggleOp = (op: OperationId) => {
+    if (op === "extract") {
+      // Audio extractor is dedicated to audio stream extraction
+      setSelectedOps(["extract"]);
+      return;
+    }
+    if (selectedOps.includes("extract")) {
+      setSelectedOps([op]);
+      return;
+    }
+    if (selectedOps.includes(op)) {
+      if (selectedOps.length > 1) {
+        setSelectedOps(selectedOps.filter((o) => o !== op));
+      }
+    } else {
+      setSelectedOps([...selectedOps, op]);
+    }
+  };
 
   // Upload state
   const [localFile, setLocalFile]       = useState<File | null>(null);
@@ -350,7 +370,7 @@ export default function Home() {
   const [trimFormat, setTrimFormat]         = useState<OutputFormat>("mp4");
   const [compressRes, setCompressRes]       = useState<Resolution>("720p");
   const [compressCrf, setCompressCrf]       = useState(23);
-  const [extractFormat, setExtractFormat]   = useState<"mp3" | "wav">("mp3");
+  const [extractFormat, setExtractFormat]   = useState<"mp3" | "wav" | "aac">("mp3");
   const [extractBitrate, setExtractBitrate] = useState<AudioBitrate>("192k");
 
   // Toast helpers
@@ -360,7 +380,7 @@ export default function Home() {
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 5000);
   }, []);
 
-  useEffect(() => { setResult(null); }, [activeTab]);
+  useEffect(() => { setResult(null); }, [selectedOps]);
 
   // Keep-alive for active users and auto-cleanup after 15m inactivity
   useEffect(() => {
@@ -471,31 +491,33 @@ export default function Home() {
   // ── Step 2: Process ──────────────────────────────────────────────────────
   const handleProcess = async () => {
     if (!uploadedFile) { toast("error", "Please upload a file first."); return; }
+    if (selectedOps.length === 0) { toast("error", "Please select at least one operation."); return; }
 
     setProcessing(true);
     setResult(null);
 
     try {
+      const isExtract = selectedOps.includes("extract");
+      const isConvert = selectedOps.includes("convert");
+      const targetFmt = isExtract ? extractFormat : isConvert ? convertFormat : "mp4";
+
       const payload: Record<string, unknown> = {
         fileId:       uploadedFile.fileId,
         filename:     uploadedFile.filename,
-        operation:    activeTab,
-        outputFormat: activeTab === "convert"  ? convertFormat
-                    : activeTab === "trim"     ? trimFormat
-                    : activeTab === "compress" ? "mp4"
-                    :                            extractFormat,
+        operations:   selectedOps,
+        outputFormat: targetFmt,
       };
 
-      if (activeTab === "trim") {
+      if (selectedOps.includes("trim")) {
         payload.startTime = trimStart;
         payload.endTime   = trimEnd;
-        payload.fastCopy  = trimFastCopy;
+        payload.fastCopy  = trimFastCopy && !selectedOps.includes("compress") && !selectedOps.includes("convert");
       }
-      if (activeTab === "compress") {
+      if (selectedOps.includes("compress")) {
         payload.resolution = compressRes;
         payload.crf        = compressCrf;
       }
-      if (activeTab === "extract") {
+      if (selectedOps.includes("extract")) {
         payload.audioBitrate = extractBitrate;
       }
 
@@ -519,37 +541,60 @@ export default function Home() {
   // ── Live command preview ─────────────────────────────────────────────────
   const liveCommand = useCallback(() => {
     const i = localFile?.name ?? "input.mp4";
-    const base = `ffmpeg -threads 2 -i "${i}"`;
 
-    if (activeTab === "convert") {
-      if (convertFormat === "mp3") return `${base} -vn -c:a libmp3lame -b:a 192k "output.mp3"`;
-      if (convertFormat === "aac") return `${base} -vn -c:a aac -b:a 192k "output.aac"`;
-      if (convertFormat === "wav") return `${base} -vn -c:a pcm_s16le "output.wav"`;
-      if (convertFormat === "gif") return `${base} -vf "fps=10,scale=-2:480:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -an "output.gif"`;
-      if (convertFormat === "webm") return `${base} -c:v libvpx-vp9 -threads 2 -crf 30 -b:v 0 -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:a libopus "output.webm"`;
-      return `${base} -c:v libx264 -threads 2 -crf 23 -preset veryfast -pix_fmt yuv420p -vf "scale=trunc(iw/2)*2:trunc(ih/2)*2" -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.mp4"`;
+    if (selectedOps.includes("extract")) {
+      let cmd = `ffmpeg -threads 2`;
+      if (selectedOps.includes("trim")) {
+        cmd += ` -ss "${trimStart}" -t "${trimEnd}"`;
+      }
+      cmd += ` -i "${i}" -vn`;
+      if (extractFormat === "wav") return `${cmd} -c:a pcm_s16le "output.wav"`;
+      if (extractFormat === "aac") return `${cmd} -c:a aac -b:a ${extractBitrate} "output.aac"`;
+      return `${cmd} -c:a libmp3lame -b:a ${extractBitrate} "output.mp3"`;
     }
-    if (activeTab === "trim") {
-      const codec = trimFastCopy ? "-c copy -avoid_negative_ts make_zero"
-        : "-c:v libx264 -threads 2 -preset veryfast -pix_fmt yuv420p -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -c:a aac -b:a 128k -ar 44100 -movflags +faststart";
-      return `${base} -ss "${trimStart}" -t "${trimEnd}" ${codec} "output.${trimFormat}"`;
+
+    let cmd = `ffmpeg -threads 2`;
+    const isTrim = selectedOps.includes("trim");
+    const isCompress = selectedOps.includes("compress");
+    const isConvert = selectedOps.includes("convert");
+
+    if (isTrim) {
+      cmd += ` -ss "${trimStart}" -t "${trimEnd}"`;
     }
-    if (activeTab === "compress") {
+    cmd += ` -i "${i}"`;
+
+    const targetFmt = isConvert ? convertFormat : "mp4";
+
+    if (isTrim && !isCompress && !isConvert && trimFastCopy) {
+      return `${cmd} -c copy -avoid_negative_ts make_zero "output.${targetFmt}"`;
+    }
+
+    let scaleFilter = "scale=trunc(iw/2)*2:trunc(ih/2)*2";
+    if (isCompress) {
       const scales: Record<Resolution, string> = {
         "1080p": "scale=-2:1080",
         "720p":  "scale=-2:720",
         "480p":  "scale=-2:480",
       };
-      return `${base} -c:v libx264 -threads 2 -crf ${compressCrf} -preset veryfast -pix_fmt yuv420p -vf "${scales[compressRes]}" -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.mp4"`;
+      scaleFilter = scales[compressRes];
     }
-    if (activeTab === "extract") {
-      if (extractFormat === "wav") return `${base} -vn -c:a pcm_s16le "output.wav"`;
-      return `${base} -vn -c:a libmp3lame -b:a ${extractBitrate} "output.mp3"`;
-    }
-    return base;
-  }, [activeTab, localFile, convertFormat, trimStart, trimEnd, trimFastCopy, trimFormat, compressRes, compressCrf, extractFormat, extractBitrate]);
 
-  const canProcess = uploadState === "done" && !!uploadedFile && !processing;
+    const crf = isCompress ? compressCrf : (targetFmt === "webm" ? 30 : 23);
+
+    if (targetFmt === "gif") {
+      return `${cmd} -vf "fps=10,${scaleFilter}:flags=lanczos,split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse" -an "output.gif"`;
+    }
+    if (targetFmt === "webm") {
+      return `${cmd} -c:v libvpx-vp9 -threads 2 -crf ${crf} -b:v 0 -pix_fmt yuv420p -vf "${scaleFilter}" -c:a libopus "output.webm"`;
+    }
+    if (["mp3", "wav", "aac"].includes(targetFmt)) {
+      return `${cmd} -vn -c:a ${targetFmt === "wav" ? "pcm_s16le" : targetFmt === "aac" ? "aac" : "libmp3lame"} "output.${targetFmt}"`;
+    }
+
+    return `${cmd} -c:v libx264 -threads 2 -crf ${crf} -preset veryfast -pix_fmt yuv420p -vf "${scaleFilter}" -c:a aac -b:a 128k -ar 44100 -movflags +faststart "output.${targetFmt}"`;
+  }, [selectedOps, localFile, convertFormat, trimStart, trimEnd, trimFastCopy, compressRes, compressCrf, extractFormat, extractBitrate]);
+
+  const canProcess = uploadState === "done" && !!uploadedFile && !processing && selectedOps.length > 0;
 
   // ─────────────────────────────────────────────────────────────────────────
   // Render
@@ -597,22 +642,36 @@ export default function Home() {
           />
         </section>
 
-        {/* Tab Bar */}
+        {/* Step 2: Choose Operation(s) */}
         <div>
-          <div className="flex items-center gap-2.5 mb-2.5">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">2</span>
-            <h2 className="text-sm font-semibold text-stone-800">Choose Operation</h2>
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="flex items-center gap-2.5">
+              <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">2</span>
+              <h2 className="text-sm font-semibold text-stone-800">Choose Operation(s)</h2>
+            </div>
+            <span className="text-xs text-stone-500 hidden sm:inline">Select one or more to combine</span>
           </div>
-          <nav className="flex flex-wrap gap-2">
-            {TABS.map((tab) => (
-              <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all shadow-none border-0
-                  ${activeTab === tab.id
-                    ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
-                    : "bg-[#ded0c5] text-stone-700 hover:text-stone-950 hover:bg-[#d5c4b8]"}`}>
-                {tab.icon}{tab.label}
-              </button>
-            ))}
+          <nav className="flex flex-wrap gap-2.5">
+            {OPERATIONS.map((op) => {
+              const isActive = selectedOps.includes(op.id);
+              return (
+                <button
+                  key={op.id}
+                  type="button"
+                  onClick={() => toggleOp(op.id)}
+                  className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all shadow-none border-0 cursor-pointer select-none
+                    ${isActive
+                      ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white shadow-sm ring-2 ring-[#f05523]/30"
+                      : "bg-[#ded0c5] text-stone-700 hover:text-stone-950 hover:bg-[#d5c4b8]"}`}
+                >
+                  <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] transition-colors ${isActive ? "bg-white/25 text-white" : "border border-stone-400 text-transparent"}`}>
+                    {isActive ? <Check size={11} strokeWidth={3} /> : null}
+                  </span>
+                  {op.icon}
+                  <span>{op.label}</span>
+                </button>
+              );
+            })}
           </nav>
         </div>
 
@@ -620,93 +679,27 @@ export default function Home() {
           {/* Options */}
           <div className="space-y-6">
             <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-5 shadow-none border-0">
-              <div className="flex items-center gap-2.5">
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">3</span>
-                <h2 className="text-sm font-semibold text-stone-800">Configure Options</h2>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">3</span>
+                  <h2 className="text-sm font-semibold text-stone-800">Configure Options</h2>
+                </div>
+                {/* Active operation badges */}
+                <div className="flex flex-wrap gap-1.5">
+                  {selectedOps.map((opId) => (
+                    <span key={opId} className="text-[11px] font-semibold bg-[#faf5f2] text-stone-700 px-2.5 py-0.5 rounded-full">
+                      {OPERATIONS.find((o) => o.id === opId)?.label}
+                    </span>
+                  ))}
+                </div>
               </div>
 
-              {/* Convert */}
-              {activeTab === "convert" && (
-                <div>
-                  <FieldLabel>Output Format</FieldLabel>
-                  <Sel value={convertFormat} options={ALL_FORMATS} onChange={setConvertFormat} />
-                  <p className="mt-2 text-xs text-stone-500">
-                    {["mp3", "wav", "aac"].includes(convertFormat)
-                      ? "Audio-only output — video stream will be stripped."
-                      : convertFormat === "gif"
-                      ? "Animated GIF with high-quality palette."
-                      : `Video output encoded with ${convertFormat === "webm" ? "VP9 + Opus" : "H.264 + AAC"}.`}
-                  </p>
-                </div>
-              )}
-
-              {/* Trim */}
-              {activeTab === "trim" && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <FieldLabel>Start Time</FieldLabel>
-                      <input type="text" value={trimStart} onChange={(e) => setTrimStart(e.target.value)}
-                        placeholder="00:00:00"
-                        className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
-                    </div>
-                    <div>
-                      <FieldLabel>End Time</FieldLabel>
-                      <input type="text" value={trimEnd} onChange={(e) => setTrimEnd(e.target.value)}
-                        placeholder="00:00:10"
-                        className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel>Output Format</FieldLabel>
-                    <Sel value={trimFormat} options={VIDEO_FORMATS.filter((f) => f !== "gif") as OutputFormat[]} onChange={(v) => setTrimFormat(v)} />
-                  </div>
-                  <Toggle checked={trimFastCopy} onChange={setTrimFastCopy}
-                    label="Fast Stream Copy"
-                    hint="Uses -c copy (instant cutting without re-encoding). Off = accurate re-encode." />
-                </div>
-              )}
-
-              {/* Compress */}
-              {activeTab === "compress" && (
-                <div className="space-y-4">
-                  <div>
-                    <FieldLabel>Resolution Preset</FieldLabel>
-                    <div className="flex gap-2">
-                      {RESOLUTIONS.map((r) => (
-                        <button key={r} onClick={() => setCompressRes(r)}
-                          className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all shadow-none border-0
-                            ${compressRes === r
-                              ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
-                              : "bg-[#faf5f2] text-stone-700 hover:text-stone-950 hover:bg-[#ded0c5]"}`}>
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel>
-                      CRF Quality: {compressCrf}{" "}
-                      <span className="normal-case font-normal text-stone-500">
-                        ({compressCrf <= 22 ? "High Quality" : compressCrf <= 27 ? "Balanced" : "Smaller Size"})
-                      </span>
-                    </FieldLabel>
-                    <input type="range" min={18} max={35} value={compressCrf}
-                      onChange={(e) => setCompressCrf(Number(e.target.value))}
-                      className="w-full accent-[#f05523] cursor-pointer" />
-                    <div className="flex justify-between text-xs text-stone-500 mt-1">
-                      <span>18 — Best Quality</span><span>35 — Smallest Size</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Extract */}
-              {activeTab === "extract" && (
+              {/* Extract Mode */}
+              {selectedOps.includes("extract") && (
                 <div className="space-y-4">
                   <div>
                     <FieldLabel>Output Audio Format</FieldLabel>
-                    <Sel value={extractFormat} options={AUDIO_ONLY_FORMATS as ("mp3"|"wav")[]} onChange={(v) => setExtractFormat(v as "mp3"|"wav")} />
+                    <Sel value={extractFormat} options={AUDIO_ONLY_FORMATS} onChange={setExtractFormat} />
                   </div>
                   {extractFormat === "mp3" && (
                     <div>
@@ -714,7 +707,7 @@ export default function Home() {
                       <div className="flex gap-2">
                         {BITRATES.map((b) => (
                           <button key={b} onClick={() => setExtractBitrate(b)}
-                            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all shadow-none border-0
+                            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all shadow-none border-0 cursor-pointer
                               ${extractBitrate === b
                                 ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
                                 : "bg-[#faf5f2] text-stone-700 hover:text-stone-950 hover:bg-[#ded0c5]"}`}>
@@ -722,6 +715,121 @@ export default function Home() {
                           </button>
                         ))}
                       </div>
+                    </div>
+                  )}
+                  {selectedOps.includes("trim") && (
+                    <div className="pt-3 border-t border-[#d9c8bd]/60 space-y-4">
+                      <div className="flex items-center gap-2 text-xs font-bold text-stone-700 uppercase tracking-wider">
+                        <Scissors size={14} className="text-[#f05523]" />
+                        <span>Trim Audio</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel>Start Time</FieldLabel>
+                          <input type="text" value={trimStart} onChange={(e) => setTrimStart(e.target.value)}
+                            placeholder="00:00:00"
+                            className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
+                        </div>
+                        <div>
+                          <FieldLabel>End Time</FieldLabel>
+                          <input type="text" value={trimEnd} onChange={(e) => setTrimEnd(e.target.value)}
+                            placeholder="00:00:10"
+                            className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Video Operations Mode (Combined) */}
+              {!selectedOps.includes("extract") && (
+                <div className="space-y-5 divide-y divide-[#d9c8bd]/60">
+                  {/* Format Converter Section */}
+                  {selectedOps.includes("convert") && (
+                    <div className="space-y-2 pt-2 first:pt-0">
+                      <div className="flex items-center gap-2 text-xs font-bold text-stone-700 uppercase tracking-wider">
+                        <Film size={14} className="text-[#f05523]" />
+                        <span>Format Converter</span>
+                      </div>
+                      <div>
+                        <FieldLabel>Target Output Format</FieldLabel>
+                        <Sel value={convertFormat} options={ALL_FORMATS} onChange={setConvertFormat} />
+                        <p className="mt-1.5 text-xs text-stone-500">
+                          {["mp3", "wav", "aac"].includes(convertFormat)
+                            ? "Audio-only output — video stream will be stripped."
+                            : convertFormat === "gif"
+                            ? "Animated GIF with high-quality palette."
+                            : `Video output encoded with ${convertFormat === "webm" ? "VP9 + Opus" : "H.264 + AAC"}.`}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Compressor Section */}
+                  {selectedOps.includes("compress") && (
+                    <div className="space-y-4 pt-4 first:pt-0">
+                      <div className="flex items-center gap-2 text-xs font-bold text-stone-700 uppercase tracking-wider">
+                        <Minimize2 size={14} className="text-[#f05523]" />
+                        <span>Video Compressor & Quality</span>
+                      </div>
+                      <div>
+                        <FieldLabel>Resolution Preset</FieldLabel>
+                        <div className="flex gap-2">
+                          {RESOLUTIONS.map((r) => (
+                            <button key={r} onClick={() => setCompressRes(r)}
+                              className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all shadow-none border-0 cursor-pointer
+                                ${compressRes === r
+                                  ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
+                                  : "bg-[#faf5f2] text-stone-700 hover:text-stone-950 hover:bg-[#ded0c5]"}`}>
+                              {r}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <FieldLabel>
+                          CRF Quality: {compressCrf}{" "}
+                          <span className="normal-case font-normal text-stone-500">
+                            ({compressCrf <= 22 ? "High Quality" : compressCrf <= 27 ? "Balanced" : "Smaller Size"})
+                          </span>
+                        </FieldLabel>
+                        <input type="range" min={18} max={35} value={compressCrf}
+                          onChange={(e) => setCompressCrf(Number(e.target.value))}
+                          className="w-full accent-[#f05523] cursor-pointer" />
+                        <div className="flex justify-between text-xs text-stone-500 mt-1">
+                          <span>18 — Best Quality</span><span>35 — Smallest Size</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Trimmer Section */}
+                  {selectedOps.includes("trim") && (
+                    <div className="space-y-4 pt-4 first:pt-0">
+                      <div className="flex items-center gap-2 text-xs font-bold text-stone-700 uppercase tracking-wider">
+                        <Scissors size={14} className="text-[#f05523]" />
+                        <span>Trimmer / Cutter</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <FieldLabel>Start Time</FieldLabel>
+                          <input type="text" value={trimStart} onChange={(e) => setTrimStart(e.target.value)}
+                            placeholder="00:00:00"
+                            className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
+                        </div>
+                        <div>
+                          <FieldLabel>End Time</FieldLabel>
+                          <input type="text" value={trimEnd} onChange={(e) => setTrimEnd(e.target.value)}
+                            placeholder="00:00:10"
+                            className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
+                        </div>
+                      </div>
+                      {!selectedOps.includes("compress") && !selectedOps.includes("convert") && (
+                        <Toggle checked={trimFastCopy} onChange={setTrimFastCopy}
+                          label="Fast Stream Copy"
+                          hint="Uses -c copy (instant cutting without re-encoding)." />
+                      )}
                     </div>
                   )}
                 </div>
@@ -737,7 +845,7 @@ export default function Home() {
                   className="flex items-center justify-center gap-2 w-full rounded-xl bg-gradient-to-r from-[#f05523] to-[#e11d48] hover:opacity-95 active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3.5 px-6 shadow-none border-0 transition-all cursor-pointer">
                   {processing
                     ? <><Loader2 size={18} className="animate-spin" /> Processing…</>
-                    : <><Play size={18} /> Start Processing</>}
+                    : <><Play size={18} /> Start Processing ({selectedOps.map((id) => OPERATIONS.find((o) => o.id === id)?.label.split(" ")[0]).join(" + ")})</>}
                 </button>
                 {!uploadedFile && (
                   <p className="text-center text-xs text-stone-500 mt-2">
