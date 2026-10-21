@@ -1,8 +1,27 @@
 {
-  "totalVisits": 0,
+  "totalVisits": 1,
   "totalUniqueVisitors": 0,
   "firstTrackedAt": "2026-10-22T00:00:00.000Z",
-  "lastVisitAt": "2026-10-22T00:00:00.000Z",
-  "daily": {},
-  "recentVisits": []
+  "lastVisitAt": "2026-10-21T21:54:48.511Z",
+  "daily": {
+    "2026-10-22": {
+      "date": "2026-10-22",
+      "totalVisits": 1,
+      "uniqueVisitors": 1,
+      "visitorHashes": [
+        "9c56bc72e901"
+      ],
+      "lastVisit": "2026-10-21T21:54:48.511Z"
+    }
+  },
+  "recentVisits": [
+    {
+      "timestamp": "2026-10-21T21:54:48.511Z",
+      "date": "2026-10-22",
+      "visitorHash": "9c56bc72e901",
+      "device": "Desktop",
+      "browser": "Safari",
+      "referrer": "http://localhost:3000/"
+    }
+  ]
 }

@@ -1088,7 +1088,17 @@ export default function Home() {
         <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500 font-medium">
           <div className="flex items-center gap-2.5">
             <img src="/logo.png" alt="klipr logo" className="h-6 w-auto object-contain opacity-85" />
-            <span>· Fast Web Media Processing Studio</span>
+            <span>
+              · Fast Web Media Processing Studio by{" "}
+              <a
+                href="https://www.olivosoft.com"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-stone-700 hover:text-[#f05523] underline underline-offset-2 transition-colors"
+              >
+                Olivosoft
+              </a>
+            </span>
           </div>
           <span>Files auto-deleted after 15 minutes of inactivity</span>
         </div>
