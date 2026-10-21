@@ -172,24 +172,102 @@ function CommandPreview({ command }: { command: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Result Card
 // ─────────────────────────────────────────────────────────────────────────────
-function ResultCard({ result }: { result: ProcessResult }) {
+function ResultCard({
+  result,
+  onClear,
+}: {
+  result: ProcessResult;
+  onClear?: () => void;
+}) {
+  const isAudio = ["mp3", "wav", "aac"].includes(result.outputFormat.toLowerCase());
+  const isGif = result.outputFormat.toLowerCase() === "gif";
+  const isVideo = !isAudio && !isGif;
+
   return (
-    <div className="rounded-2xl bg-[#faf5f2] p-6 space-y-4 shadow-none border-0">
-      <div className="flex items-center gap-3">
-        <div className="rounded-full bg-emerald-100 text-emerald-700 p-2">
-          <CheckCircle size={22} className="text-emerald-600" />
+    <div className="rounded-2xl bg-[#faf5f2] p-5 space-y-4 shadow-none border-0">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="rounded-full bg-emerald-100 text-emerald-700 p-2 shrink-0">
+            <CheckCircle size={20} className="text-emerald-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-emerald-950 text-sm leading-tight">Output Ready for Preview</p>
+            <p className="text-xs text-stone-500 mt-0.5">Auto-expires after 15m inactivity</p>
+          </div>
         </div>
-        <div>
-          <p className="font-semibold text-emerald-950 text-base">Processing Complete!</p>
-          <p className="text-xs text-emerald-700">Output is ready · Auto-expires after 15 minutes of inactivity</p>
-        </div>
+        {onClear && (
+          <button
+            onClick={onClear}
+            title="Delete this converted output"
+            className="text-stone-400 hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-stone-200/60 cursor-pointer"
+          >
+            <X size={16} />
+          </button>
+        )}
       </div>
-      <a href={result.downloadUrl} download={result.filename}
-        className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold py-3.5 px-6 shadow-none border-0 transition-all">
-        <Download size={18} />
+
+      {/* Media Preview Player */}
+      <div className="rounded-xl overflow-hidden bg-stone-950 shadow-inner border border-stone-800/40 relative">
+        {isVideo && (
+          <video
+            key={result.downloadUrl}
+            src={`${result.downloadUrl}?inline=true`}
+            controls
+            playsInline
+            className="w-full max-h-72 object-contain mx-auto"
+          />
+        )}
+        {isGif && (
+          <div className="p-3 text-center">
+            <img
+              src={`${result.downloadUrl}?inline=true`}
+              alt="Converted GIF preview"
+              className="max-h-72 object-contain mx-auto rounded-lg"
+            />
+          </div>
+        )}
+        {isAudio && (
+          <div className="p-4 bg-stone-900 flex flex-col gap-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-stone-300">
+              <Music size={15} className="text-[#f05523]" />
+              <span>Audio Playback Preview ({result.outputFormat.toUpperCase()})</span>
+            </div>
+            <audio
+              key={result.downloadUrl}
+              src={`${result.downloadUrl}?inline=true`}
+              controls
+              className="w-full h-11"
+            />
+          </div>
+        )}
+      </div>
+
+      {result.outputFormat.toLowerCase() === "mkv" && (
+        <p className="text-[11px] text-stone-500 text-center">
+          Note: If your browser does not support MKV inline playback, use the download button below.
+        </p>
+      )}
+
+      {/* Download Action */}
+      <a
+        href={result.downloadUrl}
+        download={result.filename}
+        className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold py-3 px-5 shadow-none border-0 transition-all cursor-pointer text-sm"
+      >
+        <Download size={16} />
         Download {result.outputFormat.toUpperCase()} File
       </a>
-      <p className="text-center text-xs text-stone-500 font-mono break-all">{result.filename}</p>
+
+      {/* Re-convert Notice */}
+      <div className="rounded-xl bg-[#eee3dc]/60 p-3 text-xs text-stone-600 space-y-1 border border-[#d9c8bd]/40">
+        <div className="flex items-center justify-between font-mono text-[11px]">
+          <span className="text-stone-500">File:</span>
+          <span className="font-semibold text-stone-800 truncate max-w-[220px]">{result.filename}</span>
+        </div>
+        <p className="text-[11px] text-stone-500 pt-1 border-t border-[#d9c8bd]/30">
+          💡 <strong>Need changes?</strong> Adjust your options on the left and click <strong>Convert Again</strong>. This previous output file will be automatically deleted and replaced.
+        </p>
+      </div>
     </div>
   );
 }
@@ -380,8 +458,6 @@ export default function Home() {
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 5000);
   }, []);
 
-  useEffect(() => { setResult(null); }, [selectedOps]);
-
   // Keep-alive for active users and auto-cleanup after 15m inactivity
   useEffect(() => {
     const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
@@ -431,6 +507,11 @@ export default function Home() {
 
   // ── Step 1: Upload file when dropped/selected ────────────────────────────
   const handleLocalFile = useCallback(async (file: File) => {
+    if (result?.filename) {
+      fetch(`/api/download/${encodeURIComponent(result.filename)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
     setLocalFile(file);
     setUploadedFile(null);
     setResult(null);
@@ -473,11 +554,16 @@ export default function Home() {
       setUploadState("error");
       toast("error", err instanceof Error ? err.message : "Upload failed.");
     }
-  }, [toast]);
+  }, [result, toast]);
 
   const handleClear = () => {
     if (uploadedFile?.filename) {
       fetch(`/api/upload?filename=${encodeURIComponent(uploadedFile.filename)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
+    if (result?.filename) {
+      fetch(`/api/download/${encodeURIComponent(result.filename)}`, {
         method: "DELETE",
       }).catch(() => {});
     }
@@ -488,13 +574,23 @@ export default function Home() {
     setResult(null);
   };
 
+  const handleClearResult = () => {
+    if (result?.filename) {
+      fetch(`/api/download/${encodeURIComponent(result.filename)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
+    setResult(null);
+    toast("info", "Previous output preview cleared.");
+  };
+
   // ── Step 2: Process ──────────────────────────────────────────────────────
   const handleProcess = async () => {
     if (!uploadedFile) { toast("error", "Please upload a file first."); return; }
     if (selectedOps.length === 0) { toast("error", "Please select at least one operation."); return; }
 
+    const prevFilename = result?.filename;
     setProcessing(true);
-    setResult(null);
 
     try {
       const isExtract = selectedOps.includes("extract");
@@ -502,10 +598,11 @@ export default function Home() {
       const targetFmt = isExtract ? extractFormat : isConvert ? convertFormat : "mp4";
 
       const payload: Record<string, unknown> = {
-        fileId:       uploadedFile.fileId,
-        filename:     uploadedFile.filename,
-        operations:   selectedOps,
-        outputFormat: targetFmt,
+        fileId:           uploadedFile.fileId,
+        filename:         uploadedFile.filename,
+        previousFilename: prevFilename,
+        operations:       selectedOps,
+        outputFormat:     targetFmt,
       };
 
       if (selectedOps.includes("trim")) {
@@ -530,7 +627,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error ?? "Unknown server error.");
 
       setResult(data as ProcessResult);
-      toast("success", "Processing complete! Your download is ready.");
+      toast("success", prevFilename ? "Re-processing complete! Previous preview replaced." : "Processing complete! Your output is ready to preview.");
     } catch (err) {
       toast("error", err instanceof Error ? err.message : "Processing failed.");
     } finally {
@@ -613,7 +710,7 @@ export default function Home() {
               className="h-9 md:h-10 w-auto object-contain"
             />
             <div className="hidden sm:block border-l border-[#d9c8bd] pl-3">
-              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider block">Media Studio</span>
+              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider block">FFmpeg Studio</span>
             </div>
           </div>
           <div className="flex items-center gap-2 text-xs font-medium text-stone-700 bg-[#ded0c5] px-3 py-1.5 rounded-full shadow-none border-0">
@@ -839,14 +936,23 @@ export default function Home() {
               <div className="pt-2">
                 <div className="flex items-center gap-2.5 mb-3">
                   <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">4</span>
-                  <h2 className="text-sm font-semibold text-stone-800">Process</h2>
+                  <h2 className="text-sm font-semibold text-stone-800">
+                    {result ? "Re-process / Convert Again" : "Process"}
+                  </h2>
                 </div>
                 <button onClick={handleProcess} disabled={!canProcess}
                   className="flex items-center justify-center gap-2 w-full rounded-xl bg-gradient-to-r from-[#f05523] to-[#e11d48] hover:opacity-95 active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3.5 px-6 shadow-none border-0 transition-all cursor-pointer">
                   {processing
                     ? <><Loader2 size={18} className="animate-spin" /> Processing…</>
+                    : result
+                    ? <><Play size={18} /> Convert Again ({selectedOps.map((id) => OPERATIONS.find((o) => o.id === id)?.label.split(" ")[0]).join(" + ")})</>
                     : <><Play size={18} /> Start Processing ({selectedOps.map((id) => OPERATIONS.find((o) => o.id === id)?.label.split(" ")[0]).join(" + ")})</>}
                 </button>
+                {result && !processing && (
+                  <p className="text-center text-[11px] text-stone-500 mt-2">
+                    🔄 Converting again will replace your current preview file automatically.
+                  </p>
+                )}
                 {!uploadedFile && (
                   <p className="text-center text-xs text-stone-500 mt-2">
                     Upload a file first to enable processing
@@ -865,8 +971,13 @@ export default function Home() {
 
             {result && (
               <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0">
-                <h2 className="text-sm font-semibold text-stone-800">Download Result</h2>
-                <ResultCard result={result} />
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-stone-800">Output Preview & Download</h2>
+                  <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-[#faf5f2] text-[#f05523] uppercase">
+                    {result.outputFormat}
+                  </span>
+                </div>
+                <ResultCard result={result} onClear={handleClearResult} />
               </section>
             )}
 

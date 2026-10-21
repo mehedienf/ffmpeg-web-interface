@@ -21,6 +21,7 @@ import {
   touchFile,
   initStorageCleanup,
   cleanExpiredFiles,
+  deleteFileSafe,
 } from "@/lib/storage";
 
 function calcDuration(start: string, end: string): number {
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       fileId: string;
       filename: string;
+      previousFilename?: string;
       operation?: string;
       operations?: string[];
       outputFormat: string;
@@ -119,6 +121,14 @@ export async function POST(req: NextRequest) {
     const stat = fs.statSync(uploadPath);
     if (stat.size === 0) {
       return NextResponse.json({ error: "Upload file is empty or corrupt." }, { status: 400 });
+    }
+
+    // If re-processing, delete the previous output file so orphaned files don't accumulate
+    if (body.previousFilename) {
+      const safePrev = path.basename(body.previousFilename);
+      const prevPath = path.join(/*turbopackIgnore: true*/ OUTPUTS_DIR, safePrev);
+      deleteFileSafe(prevPath);
+      console.log(`[Re-process] Deleted previous converted file: ${safePrev}`);
     }
 
     const outputExt = fmt.startsWith(".") ? fmt : `.${fmt}`;
