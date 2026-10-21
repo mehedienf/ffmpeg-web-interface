@@ -5,3 +5,6 @@
 - [x] Output preview & re-convert e previous converted file auto-delete (Built-in video/audio preview + automatic replacement)
 - [x] 200MB maximum file upload limit (Client-side instant validation + Server-side enforcement)
 - [x] How It Works section top right e shift & Upload section e upload er por dashed border remove kore full video preview + top info bar
+- [x] Daily visitor tracking system with data/visitors.json (Daily visits, unique visitors, database-ready JSON structure)
+- [x] Daily visitor tracking system with data/visitors.json (Daily visits, unique visitors, database-ready JSON structure)
+

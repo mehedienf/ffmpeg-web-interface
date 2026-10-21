@@ -487,6 +487,19 @@ export default function Home() {
     setTimeout(() => setToasts((p) => p.filter((t) => t.id !== id)), 5000);
   }, []);
 
+  // Track visitor on site visit
+  useEffect(() => {
+    const sessionKey = "klipr_visit_tracked";
+    if (!sessionStorage.getItem(sessionKey)) {
+      sessionStorage.setItem(sessionKey, "1");
+      fetch("/api/track-visit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ referrer: document.referrer || "Direct" }),
+      }).catch(() => {});
+    }
+  }, []);
+
   // Keep-alive for active users and auto-cleanup after 15m inactivity
   useEffect(() => {
     const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
