@@ -180,7 +180,7 @@ function ResultCard({ result }: { result: ProcessResult }) {
         </div>
         <div>
           <p className="font-semibold text-emerald-950 text-base">Processing Complete!</p>
-          <p className="text-xs text-emerald-700">Output is ready · Auto-expires in 15 minutes</p>
+          <p className="text-xs text-emerald-700">Output is ready · Auto-expires after 15 minutes of inactivity</p>
         </div>
       </div>
       <a href={result.downloadUrl} download={result.filename}
@@ -339,6 +339,9 @@ export default function Home() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const toastId = useRef(0);
 
+  // Inactivity tracking
+  const lastActiveRef = useRef<number>(Date.now());
+
   // Operation options
   const [convertFormat, setConvertFormat]   = useState<OutputFormat>("mp4");
   const [trimStart, setTrimStart]           = useState("00:00:00");
@@ -358,6 +361,53 @@ export default function Home() {
   }, []);
 
   useEffect(() => { setResult(null); }, [activeTab]);
+
+  // Keep-alive for active users and auto-cleanup after 15m inactivity
+  useEffect(() => {
+    const INACTIVITY_LIMIT_MS = 15 * 60 * 1000; // 15 minutes
+
+    const updateActivity = () => {
+      lastActiveRef.current = Date.now();
+    };
+
+    const events = ["mousemove", "mousedown", "keydown", "touchstart", "scroll", "click"];
+    events.forEach((ev) => window.addEventListener(ev, updateActivity, { passive: true }));
+
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const idleTime = now - lastActiveRef.current;
+
+      // If user has been inactive for 15+ minutes, auto-expire files in UI
+      if (idleTime >= INACTIVITY_LIMIT_MS) {
+        if (uploadedFile || result) {
+          setLocalFile(null);
+          setUploadedFile(null);
+          setUploadState("idle");
+          setUploadProgress(0);
+          setResult(null);
+          toast("info", "Files auto-deleted after 15 minutes of inactivity.");
+        }
+        return;
+      }
+
+      // If active and has files on server, send keep-alive to refresh server storage timestamps
+      if (uploadedFile?.filename || result?.filename) {
+        fetch("/api/keep-alive", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            uploadFilename: uploadedFile?.filename,
+            outputFilename: result?.filename,
+          }),
+        }).catch(() => {});
+      }
+    }, 45 * 1000); // Check every 45s
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, updateActivity));
+      clearInterval(interval);
+    };
+  }, [uploadedFile, result, toast]);
 
   // ── Step 1: Upload file when dropped/selected ────────────────────────────
   const handleLocalFile = useCallback(async (file: File) => {
@@ -406,6 +456,11 @@ export default function Home() {
   }, [toast]);
 
   const handleClear = () => {
+    if (uploadedFile?.filename) {
+      fetch(`/api/upload?filename=${encodeURIComponent(uploadedFile.filename)}`, {
+        method: "DELETE",
+      }).catch(() => {});
+    }
     setLocalFile(null);
     setUploadedFile(null);
     setUploadState("idle");
@@ -715,7 +770,7 @@ export default function Home() {
                     "Drag & drop your video or audio file — it uploads to the server immediately.",
                     "Select an operation tab and configure your options.",
                     "Click \"Start Processing\" — FFmpeg processes the file server-side.",
-                    "Download your output file. It auto-deletes after 15 minutes.",
+                    "Download your output file. Auto-deleted after 15 minutes of inactivity.",
                   ].map((step, i) => (
                     <li key={i} className="flex gap-3 items-start">
                       <span className="shrink-0 w-6 h-6 rounded-full bg-[#faf5f2] text-[#f05523] flex items-center justify-center text-xs font-bold mt-0.5 shadow-none border-0">
@@ -737,7 +792,7 @@ export default function Home() {
             <img src="/logo.png" alt="klipr logo" className="h-6 w-auto object-contain opacity-85" />
             <span>· Fast Web Media Processing Studio</span>
           </div>
-          <span>Files auto-deleted after 15 minutes</span>
+          <span>Files auto-deleted after 15 minutes of inactivity</span>
         </div>
       </footer>
     </div>

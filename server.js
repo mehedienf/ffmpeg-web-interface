@@ -112,6 +112,31 @@ const MIME_TYPES = {
   ".webp":  "image/webp",
 };
 
+// Background cleanup for inactive files (auto-deletes after 15m of inactivity)
+function cleanStorageFiles() {
+  const root = process.env.APP_DIR || __dirname;
+  const dirs = [path.join(root, "storage", "uploads"), path.join(root, "storage", "outputs")];
+  const now = Date.now();
+  const maxAgeMs = 15 * 60 * 1000;
+  for (const dir of dirs) {
+    if (!fs.existsSync(dir)) continue;
+    try {
+      const files = fs.readdirSync(dir);
+      for (const file of files) {
+        if (file.startsWith(".")) continue;
+        const p = path.join(dir, file);
+        try {
+          const stat = fs.statSync(p);
+          if (stat.isFile() && now - stat.mtimeMs >= maxAgeMs) {
+            fs.unlinkSync(p);
+            console.log(`[Auto Cleanup] Deleted inactive file: ${file}`);
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
+}
+
 app.prepare().then(() => {
   const server = http.createServer((req, res) => {
     try {
@@ -149,6 +174,9 @@ app.prepare().then(() => {
       process.exit(1);
     }
     console.log(`> klipr ready on port: ${port}`);
+    cleanStorageFiles();
+    const cleanupInterval = setInterval(cleanStorageFiles, 60 * 1000);
+    if (cleanupInterval.unref) cleanupInterval.unref();
   });
 }).catch((err) => {
   console.error("Fatal Error preparing Next.js app:", err);

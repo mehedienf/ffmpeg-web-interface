@@ -10,7 +10,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
-import { OUTPUTS_DIR } from "@/lib/storage";
+import { OUTPUTS_DIR, touchFile, cleanExpiredFiles } from "@/lib/storage";
 
 const MIME_MAP: Record<string, string> = {
   mp4: "video/mp4",
@@ -34,12 +34,17 @@ export async function GET(
   const safeName = path.basename(filename);
   const filePath = path.join(OUTPUTS_DIR, safeName);
 
+  cleanExpiredFiles();
+
   if (!fs.existsSync(filePath)) {
     return NextResponse.json(
       { error: "File not found or has already expired." },
       { status: 404 },
     );
   }
+
+  // Refresh timestamp on download to reflect user activity
+  touchFile(filePath);
 
   const ext = path.extname(safeName).replace(".", "").toLowerCase();
   const contentType = MIME_MAP[ext] ?? "application/octet-stream";

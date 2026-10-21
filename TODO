@@ -1,4 +1,3 @@
-- output ki auto delete hoy
-- input ki auto delete hoy?
-- ekbar compress korar por video ta abar upload kora lage
-- 
+- [x] output ki auto delete hoy (Ha, 15 minute user inactive thakle auto delete hoye jay)
+- [x] input ki auto delete hoy? (Ha, 15 minute user inactive thakle auto delete hoye jay, processing seshe ar sathe sathe delete hoy na)
+- [x] ekbar compress korar por video ta abar upload kora lage (Solved! Input file retain thake jate multiple operation kora jay)

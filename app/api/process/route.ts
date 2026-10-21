@@ -13,13 +13,14 @@ import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
 import { randomUUID } from "crypto";
-import { ensureStorageDirs, UPLOADS_DIR, OUTPUTS_DIR } from "@/lib/storage";
-
-function scheduleOutputCleanup(filePath: string) {
-  setTimeout(() => {
-    fs.unlink(filePath, () => {});
-  }, 15 * 60 * 1000);
-}
+import {
+  ensureStorageDirs,
+  UPLOADS_DIR,
+  OUTPUTS_DIR,
+  touchFile,
+  initStorageCleanup,
+  cleanExpiredFiles,
+} from "@/lib/storage";
 
 function calcDuration(start: string, end: string): number {
   const toSec = (t: string) => {
@@ -71,6 +72,8 @@ function runFFmpeg(args: string[]): Promise<void> {
 export async function POST(req: NextRequest) {
   try {
     ensureStorageDirs();
+    initStorageCleanup();
+    cleanExpiredFiles();
 
     const body = await req.json() as {
       fileId: string;
@@ -218,10 +221,9 @@ export async function POST(req: NextRequest) {
 
     await runFFmpeg(args);
 
-    // Delete the upload file immediately after processing
-    fs.unlink(uploadPath, () => {});
-
-    scheduleOutputCleanup(outputPath);
+    // Keep both input and output files active; auto-deleted after 15m of user inactivity
+    touchFile(uploadPath);
+    touchFile(outputPath);
 
     return NextResponse.json({
       downloadUrl: `/api/download/${outputName}`,
