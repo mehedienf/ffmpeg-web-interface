@@ -41,6 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# FFmpeg Studio – local file storage (auto-created at runtime)
+# klipr – local file storage (auto-created at runtime)
 /storage/uploads/
 /storage/outputs/

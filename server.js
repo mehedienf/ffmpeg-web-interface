@@ -148,7 +148,7 @@ app.prepare().then(() => {
       console.error("Failed to start server:", err);
       process.exit(1);
     }
-    console.log(`> FFmpeg Studio ready on port: ${port}`);
+    console.log(`> klipr ready on port: ${port}`);
   });
 }).catch((err) => {
   console.error("Fatal Error preparing Next.js app:", err);

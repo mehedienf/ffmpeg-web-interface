@@ -1,33 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
-
 export const metadata: Metadata = {
-  title: "FFmpeg Studio — Media Processing Suite",
+  title: "klipr — Media Processing Studio",
   description:
-    "Browser-based FFmpeg media processing studio. Convert, trim, compress videos and extract audio — powered by Next.js and fluent-ffmpeg.",
+    "klipr is a fast, web-based media processing studio. Convert, trim, compress videos and extract audio directly in your browser.",
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: "/icon.png",
   },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      <body className="min-h-full flex flex-col bg-zinc-950">{children}</body>
+    <html lang="en" className="h-full antialiased dark">
+      <body className="min-h-full flex flex-col bg-zinc-950 font-sans">{children}</body>
     </html>
   );
 }

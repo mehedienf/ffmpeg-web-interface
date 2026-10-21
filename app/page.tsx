@@ -502,11 +502,20 @@ export default function Home() {
 
       {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur sticky top-0 z-30">
-        <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-3">
-          <div className="rounded-lg bg-violet-600 p-2"><Film size={20} className="text-white" /></div>
-          <div>
-            <h1 className="text-lg font-bold text-white leading-none">FFmpeg Studio</h1>
-            <p className="text-xs text-zinc-400 mt-0.5">Media Processing Suite</p>
+        <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <img
+              src="/logo.png"
+              alt="klipr"
+              className="h-9 md:h-10 w-auto object-contain"
+            />
+            <div className="hidden sm:block border-l border-zinc-800 pl-3">
+              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider block">Media Studio</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-zinc-400">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Online</span>
           </div>
         </div>
       </header>
@@ -709,8 +718,11 @@ export default function Home() {
       </main>
 
       <footer className="mt-12 border-t border-zinc-800 bg-zinc-900/60">
-        <div className="max-w-5xl mx-auto px-4 py-5 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-zinc-500">
-          <span>FFmpeg Studio · Next.js + ffmpeg-static</span>
+        <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-500">
+          <div className="flex items-center gap-2.5">
+            <img src="/logo.png" alt="klipr logo" className="h-6 w-auto object-contain opacity-80" />
+            <span>· Fast Web Media Processing Studio</span>
+          </div>
           <span>Files auto-deleted after 15 minutes</span>
         </div>
       </footer>
