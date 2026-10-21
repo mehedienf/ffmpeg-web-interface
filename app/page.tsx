@@ -88,15 +88,15 @@ function ToastBar({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: number
   return (
     <div className="fixed top-4 right-4 z-50 flex flex-col gap-2 max-w-sm w-full">
       {toasts.map((t) => (
-        <div key={t.id} className={`flex items-start gap-3 rounded-xl px-4 py-3 shadow-xl text-sm font-medium
-          ${t.type === "success" ? "bg-emerald-600 text-white" : ""}
-          ${t.type === "error"   ? "bg-red-600 text-white"     : ""}
-          ${t.type === "info"    ? "bg-blue-600 text-white"    : ""}
+        <div key={t.id} className={`flex items-start gap-3 rounded-xl px-4 py-3 shadow-lg text-sm font-medium border
+          ${t.type === "success" ? "bg-emerald-600 text-white border-emerald-700" : ""}
+          ${t.type === "error"   ? "bg-rose-600 text-white border-rose-700"       : ""}
+          ${t.type === "info"    ? "bg-indigo-600 text-white border-indigo-700"   : ""}
         `}>
           {t.type === "success" && <CheckCircle  size={16} className="mt-0.5 shrink-0" />}
           {t.type === "error"   && <AlertTriangle size={16} className="mt-0.5 shrink-0" />}
           <span className="flex-1">{t.message}</span>
-          <button onClick={() => onRemove(t.id)}><X size={14} /></button>
+          <button onClick={() => onRemove(t.id)} className="opacity-80 hover:opacity-100 transition-opacity"><X size={14} /></button>
         </div>
       ))}
     </div>
@@ -108,7 +108,7 @@ function ToastBar({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: number
 // ─────────────────────────────────────────────────────────────────────────────
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
       {children}
     </label>
   );
@@ -119,7 +119,7 @@ function Sel<T extends string>({ value, options, onChange }: {
 }) {
   return (
     <select value={value} onChange={(e) => onChange(e.target.value as T)}
-      className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 focus:outline-none focus:border-violet-500">
+      className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all font-medium cursor-pointer">
       {options.map((o) => <option key={o} value={o}>{o.toUpperCase()}</option>)}
     </select>
   );
@@ -129,14 +129,14 @@ function Toggle({ checked, onChange, label, hint }: {
   checked: boolean; onChange: (v: boolean) => void; label: string; hint?: string;
 }) {
   return (
-    <label className="flex items-center gap-3 cursor-pointer">
+    <label className="flex items-center gap-3 cursor-pointer select-none">
       <div onClick={() => onChange(!checked)}
-        className={`relative w-10 h-5 rounded-full transition-colors ${checked ? "bg-violet-600" : "bg-zinc-700"}`}>
-        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${checked ? "translate-x-5" : ""}`} />
+        className={`relative w-10 h-5 rounded-full transition-colors ${checked ? "bg-[#f05523]" : "bg-[#d9c8bd]"}`}>
+        <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow-none transition-transform ${checked ? "translate-x-5" : ""}`} />
       </div>
       <div>
-        <p className="text-sm text-zinc-200 font-medium">{label}</p>
-        {hint && <p className="text-xs text-zinc-500">{hint}</p>}
+        <p className="text-sm text-stone-800 font-medium">{label}</p>
+        {hint && <p className="text-xs text-stone-500">{hint}</p>}
       </div>
     </label>
   );
@@ -148,13 +148,14 @@ function Toggle({ checked, onChange, label, hint }: {
 function CommandPreview({ command }: { command: string }) {
   const [copied, setCopied] = useState(false);
   return (
-    <div className="rounded-xl bg-zinc-950 border border-zinc-800 overflow-hidden">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-zinc-800 bg-zinc-900">
-        <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono">
-          <Terminal size={12} /><span>FFmpeg Command Preview</span>
+    <div className="rounded-2xl bg-stone-900 overflow-hidden shadow-none border-0">
+      <div className="flex items-center justify-between px-4 py-2.5 bg-stone-950/80">
+        <div className="flex items-center gap-2 text-xs text-stone-400 font-mono">
+          <Terminal size={13} className="text-[#f05523]" />
+          <span>FFmpeg Command Preview</span>
         </div>
         <button onClick={() => { navigator.clipboard.writeText(command); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
-          className="text-xs text-zinc-400 hover:text-violet-400 font-mono">
+          className="text-xs text-stone-400 hover:text-stone-200 font-mono transition-colors">
           {copied ? "Copied!" : "Copy"}
         </button>
       </div>
@@ -172,28 +173,28 @@ function CommandPreview({ command }: { command: string }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function ResultCard({ result }: { result: ProcessResult }) {
   return (
-    <div className="rounded-xl bg-emerald-950/40 border border-emerald-700/50 p-5 space-y-4">
+    <div className="rounded-2xl bg-[#faf5f2] p-6 space-y-4 shadow-none border-0">
       <div className="flex items-center gap-3">
-        <div className="rounded-full bg-emerald-600/20 p-2">
-          <CheckCircle size={20} className="text-emerald-400" />
+        <div className="rounded-full bg-emerald-100 text-emerald-700 p-2">
+          <CheckCircle size={22} className="text-emerald-600" />
         </div>
         <div>
-          <p className="font-semibold text-emerald-300">Processing Complete!</p>
-          <p className="text-xs text-zinc-400">Auto-expires in 15 minutes</p>
+          <p className="font-semibold text-emerald-950 text-base">Processing Complete!</p>
+          <p className="text-xs text-emerald-700">Output is ready · Auto-expires in 15 minutes</p>
         </div>
       </div>
       <a href={result.downloadUrl} download={result.filename}
-        className="flex items-center justify-center gap-2 w-full rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-3 px-6 transition-colors">
+        className="flex items-center justify-center gap-2 w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-semibold py-3.5 px-6 shadow-none border-0 transition-all">
         <Download size={18} />
         Download {result.outputFormat.toUpperCase()} File
       </a>
-      <p className="text-center text-xs text-zinc-500 font-mono break-all">{result.filename}</p>
+      <p className="text-center text-xs text-stone-500 font-mono break-all">{result.filename}</p>
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Drag & Drop File Uploader (uploads to server immediately)
+// Drag & Drop File Uploader
 // ─────────────────────────────────────────────────────────────────────────────
 function FileUploader({
   uploadState,
@@ -235,77 +236,80 @@ function FileUploader({
         onDragLeave={() => setDragging(false)}
         onDrop={handleDrop}
         onClick={() => { if (!localFile) inputRef.current?.click(); }}
-        className={`relative cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors
-          ${dragging ? "border-violet-400 bg-violet-500/10" :
-            uploadState === "done" ? "border-emerald-600 bg-emerald-900/10 cursor-default" :
-            "border-zinc-600 hover:border-violet-500 hover:bg-violet-500/5"}`}
+        className={`relative cursor-pointer rounded-2xl border-2 border-dashed p-8 text-center transition-all shadow-none
+          ${dragging ? "border-[#f05523] bg-[#faf5f2]" :
+            uploadState === "done" ? "border-emerald-500/50 bg-[#faf5f2] cursor-default" :
+            "border-[#d9c8bd] hover:border-[#f05523]/70 bg-[#faf5f2]"}`}
       >
         <input ref={inputRef} type="file" accept="video/*,audio/*" className="hidden"
           onChange={(e: ChangeEvent<HTMLInputElement>) => { const f = e.target.files?.[0]; if (f) onLocalFile(f); }} />
 
         {!localFile && (
           <div className="flex flex-col items-center gap-3">
-            <div className="rounded-full bg-violet-500/20 p-4">
-              <Upload size={28} className="text-violet-400" />
+            <div className="rounded-2xl bg-[#ded0c5] p-4 text-[#f05523]">
+              <Upload size={28} />
             </div>
             <div>
-              <p className="text-sm font-semibold text-zinc-200">Drag & drop your file here</p>
-              <p className="mt-1 text-xs text-zinc-500">or <span className="text-violet-400 underline">browse files</span> · Video & Audio</p>
+              <p className="text-sm font-semibold text-stone-800">Drag & drop your file here</p>
+              <p className="mt-1 text-xs text-stone-500">
+                or <span className="text-[#f05523] underline font-medium">browse files</span> · Video & Audio supported
+              </p>
             </div>
           </div>
         )}
 
         {localFile && (
           <div className="space-y-3">
-            <div className="flex items-center gap-3 text-left">
-              <div className="rounded-lg bg-violet-500/20 p-2">
-                {isAudio(localFile)
-                  ? <FileAudio size={18} className="text-violet-400" />
-                  : <FileVideo size={18} className="text-violet-400" />}
+            <div className="flex items-center gap-3 text-left bg-[#ded0c5] rounded-xl p-3 shadow-none border-0">
+              <div className="rounded-lg bg-[#faf5f2] p-2.5 text-[#f05523]">
+                {isAudio(localFile) ? <FileAudio size={20} /> : <FileVideo size={20} />}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium text-zinc-200">{localFile.name}</p>
-                <p className="text-xs text-zinc-500">{fmtBytes(localFile.size)}</p>
+                <p className="truncate text-sm font-medium text-stone-800">{localFile.name}</p>
+                <p className="text-xs text-stone-500">{fmtBytes(localFile.size)}</p>
               </div>
               {uploadState !== "uploading" && (
-                <button onClick={(e) => { e.stopPropagation(); onClear(); }} className="text-zinc-500 hover:text-red-400">
-                  <X size={16} />
+                <button onClick={(e) => { e.stopPropagation(); onClear(); }}
+                  className="text-stone-400 hover:text-rose-600 transition-colors p-1">
+                  <X size={18} />
                 </button>
               )}
             </div>
 
             {/* Upload progress */}
             {uploadState === "uploading" && (
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between text-xs text-zinc-400">
-                  <span className="flex items-center gap-1.5"><CloudUpload size={12} /> Uploading to server…</span>
+              <div className="space-y-1.5 pt-1">
+                <div className="flex items-center justify-between text-xs text-stone-600 font-medium">
+                  <span className="flex items-center gap-1.5 text-[#f05523]">
+                    <CloudUpload size={14} /> Uploading to server…
+                  </span>
                   <span>{uploadProgress}%</span>
                 </div>
-                <div className="h-1.5 bg-zinc-700 rounded-full overflow-hidden">
-                  <div className="h-full bg-violet-500 rounded-full transition-all duration-300"
+                <div className="h-2 bg-[#d9c8bd] rounded-full overflow-hidden">
+                  <div className="h-full bg-gradient-to-r from-[#f05523] to-[#e11d48] rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }} />
                 </div>
               </div>
             )}
 
             {uploadState === "done" && (
-              <p className="text-xs text-emerald-400 flex items-center gap-1.5">
-                <CheckCircle size={12} /> Uploaded successfully · Ready to process
+              <p className="text-xs text-emerald-700 font-medium flex items-center justify-center gap-1.5 pt-1">
+                <CheckCircle size={14} className="text-emerald-600" /> Uploaded successfully · Ready to process
               </p>
             )}
 
             {uploadState === "error" && (
-              <p className="text-xs text-red-400 flex items-center gap-1.5">
-                <AlertTriangle size={12} /> Upload failed · Please try again
+              <p className="text-xs text-rose-600 font-medium flex items-center justify-center gap-1.5 pt-1">
+                <AlertTriangle size={14} /> Upload failed · Please try again
               </p>
             )}
 
             {/* Preview */}
             {previewUrl && uploadState !== "uploading" && (
-              <div className="rounded-lg overflow-hidden bg-black">
+              <div className="rounded-xl overflow-hidden bg-stone-900 shadow-none border-0">
                 {isAudio(localFile)
-                  ? <audio src={previewUrl} controls className="w-full h-10" />
-                  : <video src={previewUrl} controls className="w-full max-h-48 object-contain" />}
+                  ? <audio src={previewUrl} controls className="w-full h-11" />
+                  : <video src={previewUrl} controls className="w-full max-h-52 object-contain" />}
               </div>
             )}
           </div>
@@ -367,7 +371,6 @@ export default function Home() {
       const fd = new FormData();
       fd.append("file", file);
 
-      // Simulate progress using XHR so we get onprogress events
       const uploaded: UploadedFile = await new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("POST", "/api/upload");
@@ -395,7 +398,7 @@ export default function Home() {
       setUploadedFile(uploaded);
       setUploadState("done");
       setUploadProgress(100);
-      toast("success", `"${file.name}" uploaded — now configure and process!`);
+      toast("success", `"${file.name}" uploaded — ready to configure and process.`);
     } catch (err) {
       setUploadState("error");
       toast("error", err instanceof Error ? err.message : "Upload failed.");
@@ -450,7 +453,7 @@ export default function Home() {
       if (!res.ok) throw new Error(data.error ?? "Unknown server error.");
 
       setResult(data as ProcessResult);
-      toast("success", "Processing complete! Download your file.");
+      toast("success", "Processing complete! Your download is ready.");
     } catch (err) {
       toast("error", err instanceof Error ? err.message : "Processing failed.");
     } finally {
@@ -497,11 +500,11 @@ export default function Home() {
   // Render
   // ─────────────────────────────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100">
+    <div className="min-h-screen bg-[#faf5f2] text-stone-800">
       <ToastBar toasts={toasts} onRemove={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
 
       {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur sticky top-0 z-30">
+      <header className="border-0 bg-[#faf5f2]/90 backdrop-blur sticky top-0 z-30 shadow-none">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <img
@@ -509,11 +512,11 @@ export default function Home() {
               alt="klipr"
               className="h-9 md:h-10 w-auto object-contain"
             />
-            <div className="hidden sm:block border-l border-zinc-800 pl-3">
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wider block">Media Studio</span>
+            <div className="hidden sm:block border-l border-[#d9c8bd] pl-3">
+              <span className="text-xs font-semibold text-stone-500 uppercase tracking-wider block">Media Studio</span>
             </div>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
+          <div className="flex items-center gap-2 text-xs font-medium text-stone-700 bg-[#ded0c5] px-3 py-1.5 rounded-full shadow-none border-0">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
             <span>Online</span>
           </div>
@@ -522,12 +525,12 @@ export default function Home() {
 
       <main className="max-w-5xl mx-auto px-4 py-8 space-y-6">
 
-        {/* Upload Panel — always visible */}
-        <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-5 space-y-4">
-          <div className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold shrink-0">1</span>
-            <h2 className="text-sm font-semibold text-zinc-300">Upload File to Server</h2>
-            {uploadState === "done" && <CheckCircle size={14} className="text-emerald-400 ml-auto" />}
+        {/* Upload Panel */}
+        <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0">
+          <div className="flex items-center gap-2.5">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">1</span>
+            <h2 className="text-sm font-semibold text-stone-800">Upload File to Server</h2>
+            {uploadState === "done" && <CheckCircle size={15} className="text-emerald-600 ml-auto" />}
           </div>
           <FileUploader
             uploadState={uploadState}
@@ -541,17 +544,17 @@ export default function Home() {
 
         {/* Tab Bar */}
         <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold shrink-0">2</span>
-            <h2 className="text-sm font-semibold text-zinc-300">Choose Operation</h2>
+          <div className="flex items-center gap-2.5 mb-2.5">
+            <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">2</span>
+            <h2 className="text-sm font-semibold text-stone-800">Choose Operation</h2>
           </div>
-          <nav className="flex flex-wrap gap-2 mt-3">
+          <nav className="flex flex-wrap gap-2">
             {TABS.map((tab) => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-colors
+                className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all shadow-none border-0
                   ${activeTab === tab.id
-                    ? "bg-violet-600 text-white shadow-lg shadow-violet-900/40"
-                    : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"}`}>
+                    ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
+                    : "bg-[#ded0c5] text-stone-700 hover:text-stone-950 hover:bg-[#d5c4b8]"}`}>
                 {tab.icon}{tab.label}
               </button>
             ))}
@@ -561,10 +564,10 @@ export default function Home() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Options */}
           <div className="space-y-6">
-            <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-5 space-y-5">
-              <div className="flex items-center gap-2">
-                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold shrink-0">3</span>
-                <h2 className="text-sm font-semibold text-zinc-300">Configure Options</h2>
+            <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-5 shadow-none border-0">
+              <div className="flex items-center gap-2.5">
+                <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">3</span>
+                <h2 className="text-sm font-semibold text-stone-800">Configure Options</h2>
               </div>
 
               {/* Convert */}
@@ -572,6 +575,13 @@ export default function Home() {
                 <div>
                   <FieldLabel>Output Format</FieldLabel>
                   <Sel value={convertFormat} options={ALL_FORMATS} onChange={setConvertFormat} />
+                  <p className="mt-2 text-xs text-stone-500">
+                    {["mp3", "wav", "aac"].includes(convertFormat)
+                      ? "Audio-only output — video stream will be stripped."
+                      : convertFormat === "gif"
+                      ? "Animated GIF with high-quality palette."
+                      : `Video output encoded with ${convertFormat === "webm" ? "VP9 + Opus" : "H.264 + AAC"}.`}
+                  </p>
                 </div>
               )}
 
@@ -583,13 +593,13 @@ export default function Home() {
                       <FieldLabel>Start Time</FieldLabel>
                       <input type="text" value={trimStart} onChange={(e) => setTrimStart(e.target.value)}
                         placeholder="00:00:00"
-                        className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 font-mono focus:outline-none focus:border-violet-500" />
+                        className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
                     </div>
                     <div>
                       <FieldLabel>End Time</FieldLabel>
                       <input type="text" value={trimEnd} onChange={(e) => setTrimEnd(e.target.value)}
                         placeholder="00:00:10"
-                        className="w-full rounded-lg bg-zinc-800 border border-zinc-700 text-zinc-200 text-sm px-3 py-2 font-mono focus:outline-none focus:border-violet-500" />
+                        className="w-full rounded-xl bg-[#faf5f2] border-0 text-stone-900 text-sm px-3.5 py-2.5 font-mono focus:outline-none focus:ring-2 focus:ring-[#f05523] shadow-none transition-all" />
                     </div>
                   </div>
                   <div>
@@ -598,7 +608,7 @@ export default function Home() {
                   </div>
                   <Toggle checked={trimFastCopy} onChange={setTrimFastCopy}
                     label="Fast Stream Copy"
-                    hint="Uses -c copy (instant, may have slight offset). Off = accurate re-encode." />
+                    hint="Uses -c copy (instant cutting without re-encoding). Off = accurate re-encode." />
                 </div>
               )}
 
@@ -610,8 +620,10 @@ export default function Home() {
                     <div className="flex gap-2">
                       {RESOLUTIONS.map((r) => (
                         <button key={r} onClick={() => setCompressRes(r)}
-                          className={`flex-1 rounded-lg py-2 text-sm font-semibold border transition-colors
-                            ${compressRes === r ? "bg-violet-600 border-violet-500 text-white" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-violet-600"}`}>
+                          className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all shadow-none border-0
+                            ${compressRes === r
+                              ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
+                              : "bg-[#faf5f2] text-stone-700 hover:text-stone-950 hover:bg-[#ded0c5]"}`}>
                           {r}
                         </button>
                       ))}
@@ -620,14 +632,14 @@ export default function Home() {
                   <div>
                     <FieldLabel>
                       CRF Quality: {compressCrf}{" "}
-                      <span className="normal-case font-normal text-zinc-500">
-                        ({compressCrf <= 22 ? "High" : compressCrf <= 27 ? "Medium" : "Low"})
+                      <span className="normal-case font-normal text-stone-500">
+                        ({compressCrf <= 22 ? "High Quality" : compressCrf <= 27 ? "Balanced" : "Smaller Size"})
                       </span>
                     </FieldLabel>
                     <input type="range" min={18} max={35} value={compressCrf}
                       onChange={(e) => setCompressCrf(Number(e.target.value))}
-                      className="w-full accent-violet-500 cursor-pointer" />
-                    <div className="flex justify-between text-xs text-zinc-600 mt-1">
+                      className="w-full accent-[#f05523] cursor-pointer" />
+                    <div className="flex justify-between text-xs text-stone-500 mt-1">
                       <span>18 — Best Quality</span><span>35 — Smallest Size</span>
                     </div>
                   </div>
@@ -647,8 +659,10 @@ export default function Home() {
                       <div className="flex gap-2">
                         {BITRATES.map((b) => (
                           <button key={b} onClick={() => setExtractBitrate(b)}
-                            className={`flex-1 rounded-lg py-2 text-sm font-semibold border transition-colors
-                              ${extractBitrate === b ? "bg-violet-600 border-violet-500 text-white" : "bg-zinc-800 border-zinc-700 text-zinc-400 hover:border-violet-600"}`}>
+                            className={`flex-1 rounded-xl py-2.5 text-sm font-semibold transition-all shadow-none border-0
+                              ${extractBitrate === b
+                                ? "bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white"
+                                : "bg-[#faf5f2] text-stone-700 hover:text-stone-950 hover:bg-[#ded0c5]"}`}>
                             {b}
                           </button>
                         ))}
@@ -659,19 +673,19 @@ export default function Home() {
               )}
 
               {/* Process Button */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-violet-600 text-white text-xs font-bold shrink-0">4</span>
-                  <h2 className="text-sm font-semibold text-zinc-300">Process</h2>
+              <div className="pt-2">
+                <div className="flex items-center gap-2.5 mb-3">
+                  <span className="flex items-center justify-center w-6 h-6 rounded-full bg-gradient-to-r from-[#f05523] to-[#e11d48] text-white text-xs font-bold shrink-0 shadow-none">4</span>
+                  <h2 className="text-sm font-semibold text-stone-800">Process</h2>
                 </div>
                 <button onClick={handleProcess} disabled={!canProcess}
-                  className="flex items-center justify-center gap-2 w-full rounded-lg bg-violet-600 hover:bg-violet-500 active:bg-violet-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3 px-6 transition-colors">
+                  className="flex items-center justify-center gap-2 w-full rounded-xl bg-gradient-to-r from-[#f05523] to-[#e11d48] hover:opacity-95 active:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold py-3.5 px-6 shadow-none border-0 transition-all cursor-pointer">
                   {processing
                     ? <><Loader2 size={18} className="animate-spin" /> Processing…</>
                     : <><Play size={18} /> Start Processing</>}
                 </button>
                 {!uploadedFile && (
-                  <p className="text-center text-xs text-zinc-600 mt-2">
+                  <p className="text-center text-xs text-stone-500 mt-2">
                     Upload a file first to enable processing
                   </p>
                 )}
@@ -681,33 +695,33 @@ export default function Home() {
 
           {/* Right: Command Preview + Result */}
           <div className="space-y-6">
-            <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-5 space-y-4">
-              <h2 className="text-sm font-semibold text-zinc-300">Live Command Preview</h2>
+            <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0">
+              <h2 className="text-sm font-semibold text-stone-800">Live Command Preview</h2>
               <CommandPreview command={liveCommand()} />
             </section>
 
             {result && (
-              <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-5 space-y-4">
-                <h2 className="text-sm font-semibold text-zinc-300">Download Result</h2>
+              <section className="rounded-2xl bg-[#ded0c5] p-6 space-y-4 shadow-none border-0">
+                <h2 className="text-sm font-semibold text-stone-800">Download Result</h2>
                 <ResultCard result={result} />
               </section>
             )}
 
             {!result && (
-              <section className="rounded-xl bg-zinc-900 border border-zinc-800 p-5">
-                <h2 className="text-sm font-semibold text-zinc-300 mb-4">How It Works</h2>
-                <ol className="space-y-3 text-sm text-zinc-400">
+              <section className="rounded-2xl bg-[#ded0c5] p-6 shadow-none border-0">
+                <h2 className="text-sm font-semibold text-stone-800 mb-4">How It Works</h2>
+                <ol className="space-y-3.5 text-sm text-stone-700">
                   {[
                     "Drag & drop your video or audio file — it uploads to the server immediately.",
                     "Select an operation tab and configure your options.",
                     "Click \"Start Processing\" — FFmpeg processes the file server-side.",
                     "Download your output file. It auto-deletes after 15 minutes.",
                   ].map((step, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="shrink-0 w-5 h-5 rounded-full bg-violet-600/30 text-violet-400 flex items-center justify-center text-xs font-bold">
+                    <li key={i} className="flex gap-3 items-start">
+                      <span className="shrink-0 w-6 h-6 rounded-full bg-[#faf5f2] text-[#f05523] flex items-center justify-center text-xs font-bold mt-0.5 shadow-none border-0">
                         {i + 1}
                       </span>
-                      <span>{step}</span>
+                      <span className="leading-relaxed">{step}</span>
                     </li>
                   ))}
                 </ol>
@@ -717,10 +731,10 @@ export default function Home() {
         </div>
       </main>
 
-      <footer className="mt-12 border-t border-zinc-800 bg-zinc-900/60">
-        <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-zinc-500">
+      <footer className="mt-16 border-0 bg-[#faf5f2] shadow-none">
+        <div className="max-w-5xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-stone-500 font-medium">
           <div className="flex items-center gap-2.5">
-            <img src="/logo.png" alt="klipr logo" className="h-6 w-auto object-contain opacity-80" />
+            <img src="/logo.png" alt="klipr logo" className="h-6 w-auto object-contain opacity-85" />
             <span>· Fast Web Media Processing Studio</span>
           </div>
           <span>Files auto-deleted after 15 minutes</span>
