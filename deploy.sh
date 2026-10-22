@@ -8,46 +8,54 @@ APP_DIR="$HOME/ffmpeg.olivosoft.com"
 cd "$APP_DIR"
 echo "=== Working in: $(pwd) ==="
 
-# Step 1: Kill any stuck Node processes
+# Step 1: Verify the required Node.js runtime
 echo ""
-echo "[1/5] Killing old Node.js processes..."
-pkill -f "node server.js" 2>/dev/null && echo "Killed old process." || echo "No old process found."
-sleep 2
+echo "[1/7] Checking Node.js version..."
+NODE_MAJOR=$(node -p "process.versions.node.split('.')[0]")
+NODE_VERSION=$(node -p "process.versions.node")
+if [ "$NODE_MAJOR" != "20" ]; then
+  echo "ERROR: Node.js 20 is required; detected Node.js $NODE_VERSION."
+  exit 1
+fi
+echo "Node.js $NODE_VERSION OK."
 
 # Step 2: Install dependencies
 echo ""
-echo "[2/5] Installing dependencies..."
-npm install --omit=dev
+echo "[2/7] Installing dependencies for the production build..."
+npm ci --no-audit --no-fund
 
 # Step 3: Build
 echo ""
-echo "[3/5] Building Next.js app..."
+echo "[3/7] Building Next.js app..."
 npm run build
 
-# Step 4: Fix storage directory permissions
+# Step 4: Verify manually uploaded FFmpeg binaries
 echo ""
-echo "[4/5] Setting up storage directories..."
+echo "[4/7] Verifying project FFmpeg binaries..."
+for binary in "$APP_DIR/bin/ffmpeg" "$APP_DIR/bin/ffprobe"; do
+  if [ ! -f "$binary" ]; then
+    echo "ERROR: Missing binary: $binary"
+    exit 1
+  fi
+  chmod 755 "$binary"
+  "$binary" -version >/dev/null
+  echo "Verified: $binary"
+done
+
+# Step 5: Remove development dependencies
+echo ""
+echo "[5/7] Removing development dependencies..."
+npm prune --omit=dev --no-audit --no-fund
+
+# Step 6: Fix storage directory permissions
+echo ""
+echo "[6/7] Setting up storage directories..."
 mkdir -p "$APP_DIR/storage/uploads"
 mkdir -p "$APP_DIR/storage/outputs"
-chmod -R 777 "$APP_DIR/storage"
+chmod -R 755 "$APP_DIR/storage"
 echo "Storage directories ready."
 
-# Step 5: Fix FFmpeg binary permissions
-echo ""
-echo "[5/5] Fixing FFmpeg binary permissions..."
-FFMPEG_PATH=$(node -e "try { console.log(require('ffmpeg-static')); } catch(e) { console.log(''); }")
-if [ -n "$FFMPEG_PATH" ]; then
-  chmod 755 "$FFMPEG_PATH"
-  echo "ffmpeg-static: $FFMPEG_PATH — chmod 755 done."
-fi
-
-FFPROBE_PATH=$(node -e "try { const f = require('@ffprobe-installer/ffprobe'); console.log(f.path); } catch(e) { console.log(''); }")
-if [ -n "$FFPROBE_PATH" ]; then
-  chmod 755 "$FFPROBE_PATH"
-  echo "ffprobe: $FFPROBE_PATH — chmod 755 done."
-fi
-
+# Step 7: Complete
 echo ""
 echo "=== DONE. Now go to cPanel > Node.js > STOP then START your app. ==="
 echo "=== Then visit https://ffmpeg.olivosoft.com/api/test to verify ==="
-

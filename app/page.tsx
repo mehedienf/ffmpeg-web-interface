@@ -265,7 +265,7 @@ function ResultCard({
           <span className="font-semibold text-stone-800 truncate max-w-[220px]">{result.filename}</span>
         </div>
         <p className="text-[11px] text-stone-500 pt-1 border-t border-[#d9c8bd]/30">
-          💡 <strong>Need changes?</strong> Adjust your options on the left and click <strong>Convert Again</strong>. This previous output file will be automatically deleted and replaced.
+          <strong>Need changes?</strong> Adjust your options on the left and click <strong>Convert Again</strong>. This previous output file will be automatically replaced.
         </p>
       </div>
     </div>
@@ -1036,7 +1036,7 @@ export default function Home() {
                 </button>
                 {result && !processing && (
                   <p className="text-center text-[11px] text-stone-500 mt-2">
-                    🔄 Converting again will replace your current preview file automatically.
+                    Converting again will replace your current preview file automatically.
                   </p>
                 )}
                 {!uploadedFile && (

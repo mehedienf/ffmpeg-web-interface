@@ -2,17 +2,12 @@
 import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
-import os from "os";
 import { execSync } from "child_process";
 
 export async function GET() {
   const appRoot = process.env.APP_DIR || process.cwd();
   
-  // Location 1: Project root bin (e.g. /home/olivosof/ffmpeg.olivosoft.com/bin/ffmpeg)
   const appBinFfmpeg = path.join(appRoot, "bin", "ffmpeg");
-  
-  // Location 2: User home bin (e.g. /home/olivosof/bin/ffmpeg)
-  const homeBinFfmpeg = path.join(os.homedir(), "bin", "ffmpeg");
 
   function inspectFile(filePath: string) {
     const exists = fs.existsSync(filePath);
@@ -42,21 +37,11 @@ export async function GET() {
   }
 
   const projectBinStatus = inspectFile(appBinFfmpeg);
-  const homeBinStatus = inspectFile(homeBinFfmpeg);
-
-  const bestWorking = projectBinStatus.works
-    ? projectBinStatus.path
-    : homeBinStatus.works
-    ? homeBinStatus.path
-    : null;
 
   return NextResponse.json({
-    status: bestWorking ? "SUCCESS_READY_TO_USE" : "NEEDS_WORKING_BINARY",
-    activeSelectedFfmpeg: bestWorking,
+    status: projectBinStatus.works ? "SUCCESS_READY_TO_USE" : "NEEDS_WORKING_BINARY",
+    activeSelectedFfmpeg: projectBinStatus.works ? projectBinStatus.path : null,
     appRoot,
     location1_ProjectFolder: projectBinStatus,
-    location2_HomeFolder: homeBinStatus,
-    serverPlatform: os.platform(),
-    serverArch: os.arch(),
   });
 }

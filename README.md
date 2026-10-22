@@ -19,3 +19,17 @@ npm run dev
 npm run build
 npm start
 ```
+
+## cPanel deployment
+
+Use Node.js 20 (20.9 or newer within the Node 20 series) in cPanel. Upload
+Linux-compatible executable binaries manually to `bin/ffmpeg` and `bin/ffprobe`,
+then run:
+
+```bash
+bash deploy.sh
+```
+
+The deployment script uses `npm ci --omit=dev` and does not download or install
+an FFmpeg npm package. Both binaries must be present and executable before the
+application is started.

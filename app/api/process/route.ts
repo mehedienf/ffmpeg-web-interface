@@ -34,19 +34,14 @@ function calcDuration(start: string, end: string): number {
 
 function runFFmpeg(args: string[]): Promise<void> {
   return new Promise((resolve, reject) => {
-    // Check Project Root bin first, then Home bin, then env/system
+    // FFmpeg is intentionally supplied as a project binary on cPanel.
     const appRoot = process.env.APP_DIR || process.cwd();
     const appBin = path.join(appRoot, "bin", "ffmpeg");
-    const homeBin = path.join(require("os").homedir(), "bin", "ffmpeg");
-
-    let binary = "ffmpeg";
-    if (fs.existsSync(appBin)) {
-      binary = appBin;
-    } else if (fs.existsSync(homeBin)) {
-      binary = homeBin;
-    } else if (process.env.FFMPEG_BINARY) {
-      binary = process.env.FFMPEG_BINARY;
+    if (!fs.existsSync(appBin)) {
+      reject(new Error(`FFmpeg binary not found at ${appBin}. Upload it to the project's bin/ directory.`));
+      return;
     }
+    const binary = appBin;
 
     console.log("[FFmpeg] Binary:", binary);
     console.log("[FFmpeg] Args:", args.join(" "));

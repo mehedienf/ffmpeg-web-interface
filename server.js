@@ -18,7 +18,6 @@ const url = require("url");
 const next = require("next");
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
 const { execSync } = require("child_process");
 
 // Set absolute application root (prevents cPanel cwd drift)
@@ -28,64 +27,35 @@ process.env.APP_DIR = __dirname;
 const port = process.env.PORT || 3000;
 const dev = process.env.NODE_ENV !== "production";
 
-// ─── Resolve a working FFmpeg binary ──────────────────────────────────────────
-// STRICTLY respects manually uploaded Linux binaries in ~/bin/
-// NEVER overwrites user files with node_modules binaries!
+// ─── Resolve manually uploaded project binaries ───────────────────────────────
 function resolveFFmpegBinary() {
-  const userHomeBin = path.join(os.homedir(), "bin", "ffmpeg");
-  
-  // 1. If user placed ffmpeg in ~/bin, ensure chmod 755 and verify
-  if (fs.existsSync(userHomeBin)) {
-    try {
-      fs.chmodSync(userHomeBin, 0o755);
-      const test = execSync(`"${userHomeBin}" -version`, { timeout: 2000 }).toString();
-      if (test.includes("ffmpeg version")) {
-        console.log(`> Using verified user FFmpeg: ${userHomeBin}`);
-        return userHomeBin;
-      }
-    } catch (err) {
-      console.warn(`> Notice: ~/bin/ffmpeg exists but failed verification test:`, err.message);
-    }
+  const appBin = path.join(__dirname, "bin", "ffmpeg");
+  if (!fs.existsSync(appBin)) {
+    throw new Error(`FFmpeg binary not found at ${appBin}. Upload it to the project's bin/ directory.`);
   }
-
-  // 2. Check common system-level FFmpeg paths
-  const systemPaths = [
-    "/usr/bin/ffmpeg",
-    "/usr/local/bin/ffmpeg",
-    "/usr/local/ffmpeg/bin/ffmpeg",
-    "/opt/cpanel/ea-php-cli/root/usr/bin/ffmpeg",
-  ];
-  for (const p of systemPaths) {
-    if (fs.existsSync(p)) {
-      console.log(`> Using system FFmpeg: ${p}`);
-      return p;
-    }
-  }
-
-  // 3. Try to locate via `which ffmpeg`
   try {
-    const which = execSync("which ffmpeg", { timeout: 2000 }).toString().trim();
-    if (which) {
-      console.log(`> Found FFmpeg via which: ${which}`);
-      return which;
-    }
-  } catch (_) {}
-
-  // 4. Fallback to ~/bin/ffmpeg path directly
-  return userHomeBin;
+    fs.chmodSync(appBin, 0o755);
+    const version = execSync(`"${appBin}" -version`, { timeout: 2000 }).toString();
+    if (!version.includes("ffmpeg version")) throw new Error("version check failed");
+  } catch (err) {
+    throw new Error(`FFmpeg binary at ${appBin} is not executable: ${err.message}`);
+  }
+  return appBin;
 }
 
 function resolveFFprobeBinary() {
-  const userProbe = path.join(os.homedir(), "bin", "ffprobe");
-  if (fs.existsSync(userProbe)) {
-    try { fs.chmodSync(userProbe, 0o755); } catch (_) {}
-    return userProbe;
+  const appProbe = path.join(__dirname, "bin", "ffprobe");
+  if (!fs.existsSync(appProbe)) {
+    throw new Error(`FFprobe binary not found at ${appProbe}. Upload it to the project's bin/ directory.`);
   }
-  const systemPaths = ["/usr/bin/ffprobe", "/usr/local/bin/ffprobe"];
-  for (const p of systemPaths) {
-    if (fs.existsSync(p)) return p;
+  try {
+    fs.chmodSync(appProbe, 0o755);
+    const version = execSync(`"${appProbe}" -version`, { timeout: 2000 }).toString();
+    if (!version.includes("ffprobe version")) throw new Error("version check failed");
+  } catch (err) {
+    throw new Error(`FFprobe binary at ${appProbe} is not executable: ${err.message}`);
   }
-  return "ffprobe";
+  return appProbe;
 }
 
 process.env.FFMPEG_BINARY = resolveFFmpegBinary();
@@ -94,6 +64,36 @@ console.log(`> Active FFmpeg : ${process.env.FFMPEG_BINARY}`);
 console.log(`> Active FFprobe: ${process.env.FFPROBE_BINARY}`);
 
 // ──────────────────────────────────────────────────────────────────────────────
+
+// Automatically create symlink _next -> .next so Apache/LiteSpeed can serve static assets directly
+try {
+  const dotNext = path.join(__dirname, ".next");
+  const underscoreNext = path.join(__dirname, "_next");
+
+  // Remove broken/stale symlink first
+  if (fs.existsSync(underscoreNext)) {
+    try {
+      const stat = fs.lstatSync(underscoreNext);
+      if (stat.isSymbolicLink()) {
+        const target = fs.readlinkSync(underscoreNext);
+        // Remove if it points somewhere wrong or if .next moved
+        if (!fs.existsSync(path.resolve(__dirname, target))) {
+          fs.unlinkSync(underscoreNext);
+          console.log("> Removed stale _next symlink");
+        }
+      }
+    } catch (_) {}
+  }
+
+  if (fs.existsSync(dotNext) && !fs.existsSync(underscoreNext)) {
+    try {
+      fs.symlinkSync(".next", underscoreNext, "dir");
+      console.log("> Created symlink _next -> .next for Apache/cPanel");
+    } catch (e) {
+      console.warn("> Could not create _next symlink:", e.message);
+    }
+  }
+} catch (_) {}
 
 const app = next({ dev, dir: __dirname });
 const handle = app.getRequestHandler();
@@ -145,18 +145,23 @@ app.prepare().then(() => {
 
       // Serve /_next/static/ directly from .next/static/
       if (pathname && pathname.startsWith("/_next/static/")) {
-        const relativePath = pathname.replace("/_next/static/", "");
-        const filePath = path.join(__dirname, ".next", "static", relativePath);
+        const relativePath = decodeURIComponent(pathname.replace("/_next/static/", ""));
+        const searchDirs = [
+          path.join(__dirname, ".next", "static", relativePath),
+          path.join(process.cwd(), ".next", "static", relativePath),
+        ];
 
-        if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
-          const ext = path.extname(filePath).toLowerCase();
-          const contentType = MIME_TYPES[ext] || "application/octet-stream";
-          res.writeHead(200, {
-            "Content-Type": contentType,
-            "Cache-Control": "public, max-age=31536000, immutable",
-          });
-          fs.createReadStream(filePath).pipe(res);
-          return;
+        for (const filePath of searchDirs) {
+          if (fs.existsSync(filePath) && fs.statSync(filePath).isFile()) {
+            const ext = path.extname(filePath).toLowerCase();
+            const contentType = MIME_TYPES[ext] || "application/octet-stream";
+            res.writeHead(200, {
+              "Content-Type": contentType,
+              "Cache-Control": "public, max-age=31536000, immutable",
+            });
+            fs.createReadStream(filePath).pipe(res);
+            return;
+          }
         }
       }
 
