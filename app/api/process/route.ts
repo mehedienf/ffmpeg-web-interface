@@ -13,7 +13,6 @@ import { NextRequest, NextResponse } from "next/server";
 import path from "path";
 import fs from "fs";
 import { spawn } from "child_process";
-import { randomUUID } from "crypto";
 import {
   ensureStorageDirs,
   UPLOADS_DIR,
@@ -30,6 +29,14 @@ function calcDuration(start: string, end: string): number {
     return (p[0] || 0) * 3600 + (p[1] || 0) * 60 + (p[2] || 0);
   };
   return Math.max(1, toSec(end) - toSec(start));
+}
+
+function createOutputFilename(originalName: string | undefined, inputName: string, format: string): string {
+  const sourceName = (originalName || inputName).replace(/[\\/]/g, "_");
+  const parsed = path.parse(path.basename(sourceName));
+  const stem = parsed.name.replace(/[^\w .()@+-]/g, "_").trim() || "output";
+  const extension = format.replace(/^\./, "").toLowerCase();
+  return `${stem}-klipr.${extension}`;
 }
 
 function runFFmpeg(args: string[]): Promise<void> {
@@ -74,6 +81,7 @@ export async function POST(req: NextRequest) {
     const body = (await req.json()) as {
       fileId: string;
       filename: string;
+      originalName?: string;
       previousFilename?: string;
       operation?: string;
       operations?: string[];
@@ -86,7 +94,7 @@ export async function POST(req: NextRequest) {
       audioBitrate?: string;
     };
 
-    const { fileId, filename, outputFormat } = body;
+    const { fileId, filename, originalName, outputFormat } = body;
     const fmt = (outputFormat || "mp4").toLowerCase();
 
     if (!fileId || !filename) {
@@ -127,7 +135,7 @@ export async function POST(req: NextRequest) {
     }
 
     const outputExt = fmt.startsWith(".") ? fmt : `.${fmt}`;
-    const outputName = `${randomUUID()}${outputExt}`;
+    const outputName = createOutputFilename(originalName, filename, outputExt);
     const outputPath = path.join(/*turbopackIgnore: true*/ OUTPUTS_DIR, outputName);
 
     const isExtract = operations.includes("extract");
